@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Band Manager</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    // Icon components as SVG strings
+    const icons = {
+      Music: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>',
+      MapPin: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>',
+      Mail: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>',
+      Phone: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>',
+      Search: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>',
+      Plus: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>',
+      Edit: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path><path d="m15 5 4 4"></path></svg>',
+      Trash2: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line></svg>',
+      Settings: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+      Upload: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>',
+      Download: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>',
+      Copy: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>',
+      Check: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+      X: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>'
+    };
+
+    const Icon = ({ name, size = 24, className = '' }) => {
+      return React.createElement('span', {
+        className: className,
+        style: { width: size, height: size, display: 'inline-block' },
+        dangerouslySetInnerHTML: { __html: icons[name] }
+      });
+    };
+
+    const SAMPLE_VENUES = [
+      { id: '1', name: 'Ivy Room', city: 'Albany', state: 'CA', phone: '(510) 526-5888', email: 'booking@ivyroom.com', address: '1 (510) 526-5888', notes: 'Berkeley area', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: false, category: '', mostRecentlyPlayed: null, website: '' },
+      { id: '2', name: 'Humbrews', city: 'Arcata', state: 'CA', phone: '(707) 826-2739', email: '', address: '856 10th St, Arcata, CA 95521', notes: 'no email call only', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: null, website: 'https://humbrews.com/' },
+      { id: '3', name: "O'Leary's Pub", city: 'Bullhead City', state: 'CA', phone: '(928) 754 4226', email: 'davedahdah@gmail.com', address: '1063 AZ-95, Bullhead City, AZ 86429', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: null, website: 'https://olearyspubbhc.com/' },
+      { id: '4', name: 'Bear Claw Saloon', city: 'Crestline', state: 'CA', phone: '(909) 338-3951', email: '', address: '24087 Lake Dr, Crestline, CA 92325', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: null, website: 'https://thebearclawsaloon.com/' },
+      { id: '5', name: 'Ska Brewing', city: 'Durango', state: 'CO', phone: '(970) 247-5792', email: 'maggiek@skabrewing.com', address: '225 Girard St, Durango, CO 81303', notes: '', status: 'Booked', lastContacted: '2025-11-08', emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: '2025-11-08', website: '' },
+      { id: '6', name: '1st Street Bar', city: 'Encinitas', state: 'CA', phone: '(760) 944-0233', email: 'idropsoundco@gmail.com', address: '656 South Coast Hwy 101, Encinitas, CA', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: null, website: '' },
+      { id: '7', name: 'Gopher Hole', city: 'Flagstaff', state: 'AZ', phone: '(928) 779-1919', email: '', address: '23 N Leroux St. , Flagstaff,AZ', notes: '', status: 'Booked', lastContacted: '2025-11-07', emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: '2025-11-07', website: '' },
+      { id: '8', name: 'Blarney Stone Pub', city: 'San Diego', state: 'CA', phone: '(858) 279-2033', email: 'blarneystonepub@gmail.com', address: '5617 Balboa Ave. San Diego, CA 92111', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: 'Yahoo Venue List', mostRecentlyPlayed: null, website: '' },
+      { id: '9', name: 'Bottom Of The Hill', city: 'San Francisco', state: 'CA', phone: '(415) 626-4455', email: 'booking@bottomofthehill.com', address: '1233 17th St, San Francisco, CA 94107', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: 'Yahoo Venue List', mostRecentlyPlayed: null, website: 'https://bottomofthehill.com/' },
+      { id: '10', name: 'Yucca Tap Room', city: 'Tempe', state: 'AZ', phone: '(480) 967-4777', email: 'admin@yuccatap.com', address: '29 W Southern Ave', notes: 'alt: gotriddem@gmail.com', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: 'Yahoo Venue List', mostRecentlyPlayed: null, website: 'https://yuccatap.com/' },
+      { id: '11', name: 'The Rock', city: 'Tucson', state: 'AZ', phone: '(520) 629-9211', email: 'bookinginfo.therocktucson@gmail.com', address: '136 N Park Ave, Tucson, AZ 85719', notes: '', status: 'Booked', lastContacted: '2025-11-21', emailHistory: [], playedBefore: false, category: '', mostRecentlyPlayed: '2025-11-21', website: '' },
+      { id: '12', name: 'Snake Bite Roadhouse', city: 'Yucca Valley', state: 'CA', phone: '(760) 820-1515', email: 'info@snakebiteroadhouse.com', address: '55405 29 Palms Hwy., Yucca Valley, CA 92284', notes: '', status: 'Booked', lastContacted: '2025-11-01', emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: '2025-11-01', website: 'https://www.snakebiteroadhouse.com/' }
+    ];
+
+    function App() {
+      const [bandInfo, setBandInfo] = React.useState(null);
+      const [venues, setVenues] = React.useState([]);
+      const [showBandSetup, setShowBandSetup] = React.useState(false);
+      const [loading, setLoading] = React.useState(true);
+
+      React.useEffect(() => {
+        loadData();
+      }, []);
+
+      function loadData() {
+        try {
+          const bandData = localStorage.getItem('band-info');
+          const venuesData = localStorage.getItem('venues-list');
+          
+          if (bandData) {
+            setBandInfo(JSON.parse(bandData));
+          } else {
+            setShowBandSetup(true);
+          }
+          
+          if (venuesData) {
+            setVenues(JSON.parse(venuesData));
+          }
+        } catch (error) {
+          console.log('First time setup', error);
+          setShowBandSetup(true);
+        }
+        setLoading(false);
+      }
+
+      function saveBandInfo(info) {
+        localStorage.setItem('band-info', JSON.stringify(info));
+        setBandInfo(info);
+        setShowBandSetup(false);
+      }
+
+      function saveVenues(newVenues) {
+        localStorage.setItem('venues-list', JSON.stringify(newVenues));
+        setVenues(newVenues);
+      }
+
+      function loadSampleVenues() {
+        saveVenues(SAMPLE_VENUES);
+      }
+
+      if (loading) {
+        return React.createElement('div', {
+          className: 'min-h-screen flex items-center justify-center'
+        }, React.createElement('div', {
+          className: 'text-white text-2xl'
+        }, 'Loading...'));
+      }
+
+      if (showBandSetup) {
+        return React.createElement(BandSetup, {
+          onSave: saveBandInfo,
+          initialData: bandInfo
+        });
+      }
+
+      return React.createElement('div', {
+        className: 'min-h-screen p-4'
+      },
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-6 mb-4'
+        },
+          React.createElement('div', {
+            className: 'flex items-center justify-between'
+          },
+            React.createElement('div', {
+              className: 'flex items-center gap-3'
+            },
+              React.createElement('div', {
+                className: 'bg-gradient-to-br from-cyan-400 to-blue-500 p-3 rounded-xl shadow-lg'
+              }, React.createElement(Icon, { name: 'Music', size: 32, className: 'text-white' })),
+              React.createElement('div', null,
+                React.createElement('h1', {
+                  className: 'text-2xl font-bold text-gray-900'
+                }, (bandInfo?.bandName || 'Band Manager')),
+                React.createElement('p', {
+                  className: 'text-sm text-gray-600'
+                }, venues.length + ' venues')
+              )
+            )
+          )
+        ),
+        venues.length === 0 && React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-8 text-center'
+        },
+          React.createElement('p', {
+            className: 'text-gray-600 text-lg mb-4'
+          }, 'No venues yet!'),
+          React.createElement('button', {
+            onClick: loadSampleVenues,
+            className: 'bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 rounded-xl font-bold text-lg'
+          }, 'Load Sample Venues')
+        ),
+        React.createElement('div', {
+          className: 'text-center text-white mt-8'
+        },
+          React.createElement('p', {
+            className: 'text-lg'
+          }, 'Band Manager is loading...')
+        )
+      );
+    }
+
+    function BandSetup({ onSave, initialData }) {
+      const [bandName, setBandName] = React.useState(initialData?.bandName || '');
+      const [bandleaderName, setBandleaderName] = React.useState(initialData?.bandleaderName || '');
+      const [bio, setBio] = React.useState(initialData?.bio || '');
+
+      function handleSave() {
+        if (!bandName || !bandleaderName) {
+          alert('Please fill in band name and your name');
+          return;
+        }
+        onSave({ bandName, bandleaderName, bio });
+      }
+
+      return React.createElement('div', {
+        className: 'min-h-screen p-4 flex items-center justify-center'
+      },
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full'
+        },
+          React.createElement('div', {
+            className: 'text-center mb-6'
+          },
+            React.createElement('div', {
+              className: 'bg-gradient-to-br from-purple-500 to-blue-500 p-4 rounded-xl inline-block mb-4'
+            }, React.createElement(Icon, { name: 'Music', size: 48, className: 'text-white' })),
+            React.createElement('h1', {
+              className: 'text-3xl font-bold text-gray-900 mb-2'
+            }, 'Band Setup'),
+            React.createElement('p', {
+              className: 'text-gray-600'
+            }, "Let's get your info set up")
+          ),
+          React.createElement('div', {
+            className: 'space-y-4'
+          },
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Band Name'),
+              React.createElement('input', {
+                type: 'text',
+                value: bandName,
+                onChange: (e) => setBandName(e.target.value),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'Your Band Name'
+              })
+            ),
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Your Name'),
+              React.createElement('input', {
+                type: 'text',
+                value: bandleaderName,
+                onChange: (e) => setBandleaderName(e.target.value),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'Your Name'
+              })
+            ),
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Band Bio (Optional)'),
+              React.createElement('textarea', {
+                value: bio,
+                onChange: (e) => setBio(e.target.value),
+                rows: 4,
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'Tell venues about your band...'
+              })
+            ),
+            React.createElement('button', {
+              onClick: handleSave,
+              className: 'w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 rounded-xl font-bold text-xl shadow-lg hover:shadow-xl transition-all'
+            }, 'Save & Continue')
+          )
+        )
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>
