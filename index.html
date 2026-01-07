@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Band Manager</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    // ============================================
+    // FIREBASE CONFIGURATION
+    // ============================================
+    // REPLACE THIS WITH YOUR FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "AIzaSyCKlwa-kwIwH6ZK4nnn7wxBGkcSrEHHnaU",
+  authDomain: "venue-manager-20db8.firebaseapp.com",
+  projectId: "venue-manager-20db8",
+  storageBucket: "venue-manager-20db8.firebasestorage.app",
+  messagingSenderId: "71416409246",
+  appId: "1:71416409246:web:4f190a8dfcab1232845f8f",
+  measurementId: "G-CD0SFRQ1NJ"
+};
+
+    // Initialize Firebase
+    let db = null;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      console.log("Firebase initialized successfully");
+    } catch (error) {
+      console.error("Firebase initialization error:", error);
+    }
+
+    // ============================================
+    // ICONS (SVG)
+    // ============================================
+    const icons = {
+      Music: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>',
+      MapPin: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>',
+      Mail: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>',
+      Phone: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>',
+      Search: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>',
+      Plus: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>',
+      Edit: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path></svg>',
+      Trash2: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>',
+      Settings: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m0-18a2 2 0 0 0-2 2v.09A2 2 0 0 1 8 11H7a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h1a2 2 0 0 1 2 1.91V17a2 2 0 0 0 2 2v0a2 2 0 0 0 2-2v-1.09A2 2 0 0 1 16 13h1a2 2 0 0 0 2-2v0a2 2 0 0 0-2-2h-1a2 2 0 0 1-2-1.91V7a2 2 0 0 0-2-2z"></path></svg>',
+      Upload: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>',
+      Download: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>',
+      Copy: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>',
+      Check: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+      X: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>'
+    };
+
+    const Icon = ({ name, size = 24, className = '' }) => {
+      return React.createElement('span', {
+        className: className,
+        style: { width: size, height: size, display: 'inline-block', lineHeight: 0 },
+        dangerouslySetInnerHTML: { __html: icons[name] }
+      });
+    };
+
+    // ============================================
+    // REGION ASSIGNMENT LOGIC
+    // ============================================
+    const REGION_MAP = {
+      // NorCal (includes Central Valley)
+      'Arcata': 'NorCal', 'Auburn': 'NorCal', 'Benicia': 'NorCal', 'Bakersfield': 'NorCal',
+      'Chico': 'NorCal', 'Davis': 'NorCal', 'Eureka': 'NorCal', 'Fresno': 'NorCal',
+      'Grass Valley': 'NorCal', 'Modesto': 'NorCal', 'Nevada City': 'NorCal', 'Redding': 'NorCal',
+      'Sacramento': 'NorCal', 'Stockton': 'NorCal', 'Vacaville': 'NorCal', 'Visalia': 'NorCal',
+      'Woodland': 'NorCal',
+      
+      // Bay Area
+      'Albany': 'Bay Area', 'Berkeley': 'Bay Area', 'Oakland': 'Bay Area', 'San Francisco': 'Bay Area',
+      'San Jose': 'Bay Area', 'San Leandro': 'Bay Area', 'San Mateo': 'Bay Area', 'Santa Clara': 'Bay Area',
+      'South San Francisco': 'Bay Area', 'Walnut Creek': 'Bay Area', 'Fremont': 'Bay Area',
+      'Hayward': 'Bay Area', 'Palo Alto': 'Bay Area', 'Sunnyvale': 'Bay Area', 'San Bruno': 'Bay Area',
+      'Daly City': 'Bay Area', 'Redwood City': 'Bay Area', 'Mountain View': 'Bay Area',
+      
+      // SoCal Coast
+      'San Diego': 'SoCal Coast', 'Encinitas': 'SoCal Coast', 'Oceanside': 'SoCal Coast',
+      'Carlsbad': 'SoCal Coast', 'Solana Beach': 'SoCal Coast', 'Del Mar': 'SoCal Coast',
+      'La Jolla': 'SoCal Coast', 'Pacific Beach': 'SoCal Coast', 'Ocean Beach': 'SoCal Coast',
+      'Imperial Beach': 'SoCal Coast', 'Chula Vista': 'SoCal Coast', 'San Clemente': 'SoCal Coast',
+      'Dana Point': 'SoCal Coast', 'Laguna Beach': 'SoCal Coast', 'Newport Beach': 'SoCal Coast',
+      'Huntington Beach': 'SoCal Coast', 'Seal Beach': 'SoCal Coast', 'Long Beach': 'SoCal Coast',
+      'Redondo Beach': 'SoCal Coast', 'Manhattan Beach': 'SoCal Coast', 'Hermosa Beach': 'SoCal Coast',
+      'Santa Monica': 'SoCal Coast', 'Venice': 'SoCal Coast', 'Marina del Rey': 'SoCal Coast',
+      'Malibu': 'SoCal Coast', 'Ventura': 'SoCal Coast', 'Oxnard': 'SoCal Coast',
+      'Santa Barbara': 'SoCal Coast', 'Carpinteria': 'SoCal Coast', 'Goleta': 'SoCal Coast',
+      'San Luis Obispo': 'SoCal Coast', 'Morro Bay': 'SoCal Coast', 'Pismo Beach': 'SoCal Coast',
+      'Alpine': 'SoCal Coast', 'Carmel': 'SoCal Coast', 'Los Olivos': 'SoCal Coast',
+      'Capitola': 'SoCal Coast', 'Santa Cruz': 'SoCal Coast', 'Soquel': 'SoCal Coast',
+      'Boulder Creek': 'SoCal Coast', 'Ben Lomond': 'SoCal Coast', 'Felton': 'SoCal Coast',
+      'Aptos': 'SoCal Coast', 'Watsonville': 'SoCal Coast', 'Salinas': 'SoCal Coast',
+      'Monterey': 'SoCal Coast', 'Pacific Grove': 'SoCal Coast', 'Seaside': 'SoCal Coast',
+      'Cachuma Lake': 'SoCal Coast', 'Bolsa Chica': 'SoCal Coast', 'Saratoga': 'SoCal Coast',
+      
+      // LA Area
+      'Los Angeles': 'LA Area', 'Pasadena': 'LA Area', 'Glendale': 'LA Area', 'Burbank': 'LA Area',
+      'Studio City': 'LA Area', 'North Hollywood': 'LA Area', 'Hollywood': 'LA Area',
+      'West Hollywood': 'LA Area', 'Beverly Hills': 'LA Area', 'Culver City': 'LA Area',
+      'Inglewood': 'LA Area', 'Torrance': 'LA Area', 'Anaheim': 'LA Area', 'Orange': 'LA Area',
+      'Santa Ana': 'LA Area', 'Irvine': 'LA Area', 'Costa Mesa': 'LA Area', 'Garden Grove': 'LA Area',
+      'Fullerton': 'LA Area', 'Brea': 'LA Area', 'Aliso Viejo': 'LA Area', 'Mission Viejo': 'LA Area',
+      'Canoga Park': 'LA Area', 'Chatsworth': 'LA Area', 'Northridge': 'LA Area',
+      'San Fernando': 'LA Area', 'Pomona': 'LA Area', 'Claremont': 'LA Area', 'Covina': 'LA Area',
+      'West Covina': 'LA Area', 'Whittier': 'LA Area', 'Downey': 'LA Area', 'South Gate': 'LA Area',
+      'Bellflower': 'LA Area', 'Lakewood': 'LA Area', 'Cerritos': 'LA Area', 'Norwalk': 'LA Area',
+      'La Mirada': 'LA Area', 'Buena Park': 'LA Area', 'Cypress': 'LA Area', 'Los Alamitos': 'LA Area',
+      'Stanton': 'LA Area', 'La Habra': 'LA Area', 'Brentwood': 'LA Area', 'Maywood': 'LA Area',
+      'Lomita': 'LA Area', 'Arcadia': 'LA Area', 'Monrovia': 'LA Area', 'Azusa': 'LA Area',
+      'El Monte': 'LA Area', 'Alhambra': 'LA Area', 'South Pasadena': 'LA Area',
+      'San Gabriel': 'LA Area', 'Temple City': 'LA Area', 'Rosemead': 'LA Area',
+      'Monterey Park': 'LA Area', 'San Marino': 'LA Area', 'Sierra Madre': 'LA Area',
+      'Altadena': 'LA Area', 'La Cañada Flintridge': 'LA Area', 'Echo Park': 'LA Area',
+      'Alta Dena': 'LA Area',
+      
+      // Inland Empire (includes mountains + Palmdale)
+      'Riverside': 'Inland Empire', 'San Bernardino': 'Inland Empire', 'Fontana': 'Inland Empire',
+      'Rancho Cucamonga': 'Inland Empire', 'Ontario': 'Inland Empire', 'Upland': 'Inland Empire',
+      'Chino': 'Inland Empire', 'Corona': 'Inland Empire', 'Moreno Valley': 'Inland Empire',
+      'Perris': 'Inland Empire', 'Hemet': 'Inland Empire', 'Murrieta': 'Inland Empire',
+      'Temecula': 'Inland Empire', 'Lake Elsinore': 'Inland Empire', 'Redlands': 'Inland Empire',
+      'Yucaipa': 'Inland Empire', 'Beaumont': 'Inland Empire', 'Banning': 'Inland Empire',
+      'Colton': 'Inland Empire', 'Rialto': 'Inland Empire', 'Highland': 'Inland Empire',
+      'Loma Linda': 'Inland Empire', 'Grand Terrace': 'Inland Empire', 'Big Bear': 'Inland Empire',
+      'Big Bear Lake': 'Inland Empire', 'Crestline': 'Inland Empire', 'Lake Arrowhead': 'Inland Empire',
+      'Running Springs': 'Inland Empire', 'Palmdale': 'Inland Empire', 'Lancaster': 'Inland Empire',
+      'Hesperia': 'Inland Empire', 'Apple Valley': 'Inland Empire', 'Victorville': 'Inland Empire',
+      'Adelanto': 'Inland Empire', 'Barstow': 'Inland Empire',
+      
+      // Desert Local (Coachella Valley + Mojave)
+      'Yucca Valley': 'Desert Local', 'Joshua Tree': 'Desert Local', '29 Palms': 'Desert Local',
+      'Twentynine Palms': 'Desert Local', 'Desert Hot Springs': 'Desert Local',
+      'Palm Springs': 'Desert Local', 'Cathedral City': 'Desert Local', 'Rancho Mirage': 'Desert Local',
+      'Palm Desert': 'Desert Local', 'Indian Wells': 'Desert Local', 'La Quinta': 'Desert Local',
+      'Indio': 'Desert Local', 'Coachella': 'Desert Local', 'Thermal': 'Desert Local',
+      'Mecca': 'Desert Local', 'Thousand Palms': 'Desert Local', 'Morongo Valley': 'Desert Local',
+      'Lucerne Valley': 'Desert Local',
+      
+      // Arizona
+      'Phoenix': 'Arizona', 'Scottsdale': 'Arizona', 'Tempe': 'Arizona', 'Mesa': 'Arizona',
+      'Chandler': 'Arizona', 'Gilbert': 'Arizona', 'Glendale': 'Arizona', 'Peoria': 'Arizona',
+      'Surprise': 'Arizona', 'Tucson': 'Arizona', 'Flagstaff': 'Arizona', 'Sedona': 'Arizona',
+      'Prescott': 'Arizona', 'Kingman': 'Arizona', 'Lake Havasu': 'Arizona',
+      'Lake Havasu City': 'Arizona', 'Yuma': 'Arizona', 'Bullhead City': 'Arizona',
+      'Bisbee': 'Arizona', 'Cave Creek': 'Arizona',
+      
+      // Pacific NW
+      'Portland': 'Pacific NW', 'Eugene': 'Pacific NW', 'Bend': 'Pacific NW', 'Salem': 'Pacific NW',
+      'Corvallis': 'Pacific NW', 'Ashland': 'Pacific NW', 'Medford': 'Pacific NW',
+      'Seattle': 'Pacific NW', 'Tacoma': 'Pacific NW', 'Olympia': 'Pacific NW',
+      'Bellingham': 'Pacific NW', 'Spokane': 'Pacific NW', 'Boise': 'Pacific NW',
+      
+      // Nevada
+      'Las Vegas': 'Nevada', 'Henderson': 'Nevada', 'North Las Vegas': 'Nevada',
+      'Reno': 'Nevada', 'Sparks': 'Nevada', 'Carson City': 'Nevada', 'Laughlin': 'Nevada',
+      
+      // New Mexico
+      'Albuquerque': 'New Mexico', 'Santa Fe': 'New Mexico', 'Las Cruces': 'New Mexico',
+      'Roswell': 'New Mexico', 'Taos': 'New Mexico', 'Raton': 'New Mexico', 'Penasco': 'New Mexico',
+      
+      // Colorado
+      'Denver': 'Colorado', 'Boulder': 'Colorado', 'Fort Collins': 'Colorado',
+      'Colorado Springs': 'Colorado', 'Pueblo': 'Colorado', 'Durango': 'Colorado',
+      'Aspen': 'Colorado', 'Vail': 'Colorado', 'Breckenridge': 'Colorado',
+      'Steamboat Springs': 'Colorado', 'Grand Junction': 'Colorado', 'Montrose': 'Colorado',
+      'Telluride': 'Colorado', 'Crested Butte': 'Colorado', 'Glenwood Springs': 'Colorado',
+      'Leadville': 'Colorado', 'Salida': 'Colorado', 'Buena Vista': 'Colorado',
+      'Pagosa Springs': 'Colorado', 'Silverton': 'Colorado', 'Rico': 'Colorado',
+      'Avon': 'Colorado', 'Carbondale': 'Colorado', 'Littleton': 'Colorado',
+      'Longmont': 'Colorado', 'Greeley': 'Colorado', 'Palisade': 'Colorado',
+      'Parker': 'Colorado', 'Snowmass Village': 'Colorado', 'Speer': 'Colorado',
+      'Wheatridge': 'Colorado', 'Northglenn': 'Colorado', 'Mountain Village': 'Colorado',
+      'Ft. Collins': 'Colorado',
+      
+      // Midwest (Nebraska and eastward)
+      'Chicago': 'Midwest', 'Wichita': 'Midwest', 'Kansas City': 'Midwest', 'St. Louis': 'Midwest',
+      'Omaha': 'Midwest', 'Lincoln': 'Midwest', 'Des Moines': 'Midwest',
+      'Minneapolis': 'Midwest', 'New Ulm': 'Midwest', 'Milwaukee': 'Midwest',
+      'Madison': 'Midwest', 'Indianapolis': 'Midwest', 'Columbus': 'Midwest',
+      'Cleveland': 'Midwest', 'Detroit': 'Midwest', 'Tulsa': 'Midwest',
+      'Oklahoma City': 'Midwest', 'Waunakee': 'Midwest'
+    };
+
+    const REGIONS_ORDER = [
+      'Desert Local',
+      'Arizona',
+      'Inland Empire',
+      'SoCal Coast',
+      'LA Area',
+      'Bay Area',
+      'NorCal',
+      'Pacific NW',
+      'Nevada',
+      'New Mexico',
+      'Colorado',
+      'Midwest'
+    ];
+
+    function getRegionForCity(city) {
+      return REGION_MAP[city] || '';
+    }
+
+    // ============================================
+    // SAMPLE VENUES
+    // ============================================
+    const SAMPLE_VENUES = [
+      { name: 'Ivy Room', city: 'Albany', state: 'CA', phone: '(510) 526-5888', email: 'booking@ivyroom.com', address: '1 (510) 526-5888', notes: 'Berkeley area', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: false, category: '', mostRecentlyPlayed: null, website: '', region: 'Bay Area' },
+      { name: 'Humbrews', city: 'Arcata', state: 'CA', phone: '(707) 826-2739', email: '', address: '856 10th St, Arcata, CA 95521', notes: 'no email call only', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: null, website: 'https://humbrews.com/', region: 'NorCal' },
+      { name: "O'Leary's Pub", city: 'Bullhead City', state: 'CA', phone: '(928) 754 4226', email: 'davedahdah@gmail.com', address: '1063 AZ-95, Bullhead City, AZ 86429', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: null, website: 'https://olearyspubbhc.com/', region: 'Arizona' },
+      { name: 'Bear Claw Saloon', city: 'Crestline', state: 'CA', phone: '(909) 338-3951', email: '', address: '24087 Lake Dr, Crestline, CA 92325', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: null, website: 'https://thebearclawsaloon.com/', region: 'Inland Empire' },
+      { name: 'Ska Brewing', city: 'Durango', state: 'CO', phone: '(970) 247-5792', email: 'maggiek@skabrewing.com', address: '225 Girard St, Durango, CO 81303', notes: '', status: 'Booked', lastContacted: '2025-11-08', emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: '2025-11-08', website: '', region: 'Colorado' },
+      { name: '1st Street Bar', city: 'Encinitas', state: 'CA', phone: '(760) 944-0233', email: 'idropsoundco@gmail.com', address: '656 South Coast Hwy 101, Encinitas, CA', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: null, website: '', region: 'SoCal Coast' },
+      { name: 'Gopher Hole', city: 'Flagstaff', state: 'AZ', phone: '(928) 779-1919', email: '', address: '23 N Leroux St. , Flagstaff,AZ', notes: '', status: 'Booked', lastContacted: '2025-11-07', emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: '2025-11-07', website: '', region: 'Arizona' },
+      { name: 'Blarney Stone Pub', city: 'San Diego', state: 'CA', phone: '(858) 279-2033', email: 'blarneystonepub@gmail.com', address: '5617 Balboa Ave. San Diego, CA 92111', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: 'Yahoo Venue List', mostRecentlyPlayed: null, website: '', region: 'SoCal Coast' },
+      { name: 'Bottom Of The Hill', city: 'San Francisco', state: 'CA', phone: '(415) 626-4455', email: 'booking@bottomofthehill.com', address: '1233 17th St, San Francisco, CA 94107', notes: '', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: 'Yahoo Venue List', mostRecentlyPlayed: null, website: 'https://bottomofthehill.com/', region: 'Bay Area' },
+      { name: 'Yucca Tap Room', city: 'Tempe', state: 'AZ', phone: '(480) 967-4777', email: 'admin@yuccatap.com', address: '29 W Southern Ave', notes: 'alt: gotriddem@gmail.com', status: 'Not Contacted', lastContacted: null, emailHistory: [], playedBefore: true, category: 'Yahoo Venue List', mostRecentlyPlayed: null, website: 'https://yuccatap.com/', region: 'Arizona' },
+      { name: 'The Rock', city: 'Tucson', state: 'AZ', phone: '(520) 629-9211', email: 'bookinginfo.therocktucson@gmail.com', address: '136 N Park Ave, Tucson, AZ 85719', notes: '', status: 'Booked', lastContacted: '2025-11-21', emailHistory: [], playedBefore: false, category: '', mostRecentlyPlayed: '2025-11-21', website: '', region: 'Arizona' },
+      { name: 'Snake Bite Roadhouse', city: 'Yucca Valley', state: 'CA', phone: '(760) 820-1515', email: 'info@snakebiteroadhouse.com', address: '55405 29 Palms Hwy., Yucca Valley, CA 92284', notes: '', status: 'Booked', lastContacted: '2025-11-01', emailHistory: [], playedBefore: true, category: '', mostRecentlyPlayed: '2025-11-01', website: 'https://www.snakebiteroadhouse.com/', region: 'Desert Local' }
+    ];
+
+    // ============================================
+    // MAIN APP COMPONENT
+    // ============================================
+    function App() {
+      const [bandInfo, setBandInfo] = React.useState(null);
+      const [venues, setVenues] = React.useState([]);
+      const [showBandSetup, setShowBandSetup] = React.useState(false);
+      const [showVenueForm, setShowVenueForm] = React.useState(false);
+      const [showBulkImport, setShowBulkImport] = React.useState(false);
+      const [editingVenue, setEditingVenue] = React.useState(null);
+      const [viewingVenue, setViewingVenue] = React.useState(null);
+      const [emailVenue, setEmailVenue] = React.useState(null);
+      const [loading, setLoading] = React.useState(true);
+      const [searchTerm, setSearchTerm] = React.useState('');
+      const [filterStatus, setFilterStatus] = React.useState('All');
+      const [filterRegion, setFilterRegion] = React.useState('All');
+
+      React.useEffect(() => {
+        loadData();
+      }, []);
+
+      async function loadData() {
+        if (!db) {
+          alert('Firebase not configured. Please add your Firebase config.');
+          setLoading(false);
+          return;
+        }
+
+        try {
+          // Load band info
+          const bandDoc = await db.collection('config').doc('bandInfo').get();
+          if (bandDoc.exists) {
+            setBandInfo(bandDoc.data());
+          } else {
+            setShowBandSetup(true);
+          }
+
+          // Load venues with real-time updates
+          db.collection('venues').onSnapshot(snapshot => {
+            const venuesData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            setVenues(venuesData);
+          });
+        } catch (error) {
+          console.error('Error loading data:', error);
+          setShowBandSetup(true);
+        }
+        setLoading(false);
+      }
+
+      async function saveBandInfo(info) {
+        if (!db) return;
+        try {
+          await db.collection('config').doc('bandInfo').set(info);
+          setBandInfo(info);
+          setShowBandSetup(false);
+        } catch (error) {
+          console.error('Error saving band info:', error);
+          alert('Error saving band info');
+        }
+      }
+
+      async function loadSampleVenues() {
+        if (!db) return;
+        try {
+          const batch = db.batch();
+          SAMPLE_VENUES.forEach(venue => {
+            const docRef = db.collection('venues').doc();
+            batch.set(docRef, venue);
+          });
+          await batch.commit();
+        } catch (error) {
+          console.error('Error loading sample venues:', error);
+          alert('Error loading sample venues');
+        }
+      }
+
+      async function autoAssignRegions() {
+        if (!db) return;
+        if (!confirm('Auto-assign regions to all venues based on their city? This will update all venues.')) return;
+        
+        try {
+          const batch = db.batch();
+          let updateCount = 0;
+          
+          venues.forEach(venue => {
+            if (!venue.region && venue.city) {
+              const region = getRegionForCity(venue.city);
+              if (region) {
+                const docRef = db.collection('venues').doc(venue.id);
+                batch.update(docRef, { region: region });
+                updateCount++;
+              }
+            }
+          });
+          
+          if (updateCount > 0) {
+            await batch.commit();
+            alert(`Updated ${updateCount} venues with regions!`);
+          } else {
+            alert('All venues already have regions assigned!');
+          }
+        } catch (error) {
+          console.error('Error auto-assigning regions:', error);
+          alert('Error auto-assigning regions');
+        }
+      }
+
+      async function addVenue(venue) {
+        if (!db) return;
+        try {
+          const region = getRegionForCity(venue.city);
+          await db.collection('venues').add({
+            ...venue,
+            region: region,
+            status: 'Not Contacted',
+            lastContacted: null,
+            emailHistory: []
+          });
+          setShowVenueForm(false);
+          setEditingVenue(null);
+        } catch (error) {
+          console.error('Error adding venue:', error);
+          alert('Error adding venue');
+        }
+      }
+
+      async function updateVenue(id, updates) {
+        if (!db) return;
+        try {
+          await db.collection('venues').doc(id).update(updates);
+          setShowVenueForm(false);
+          setEditingVenue(null);
+        } catch (error) {
+          console.error('Error updating venue:', error);
+          alert('Error updating venue');
+        }
+      }
+
+      async function deleteVenue(id) {
+        if (!confirm('Delete this venue?')) return;
+        if (!db) return;
+        try {
+          await db.collection('venues').doc(id).delete();
+        } catch (error) {
+          console.error('Error deleting venue:', error);
+          alert('Error deleting venue');
+        }
+      }
+
+      async function logEmail(venueId, emailType, emailContent) {
+        if (!db) return;
+        try {
+          const venue = venues.find(v => v.id === venueId);
+          const emailHistory = venue.emailHistory || [];
+          emailHistory.push({
+            date: new Date().toISOString(),
+            type: emailType,
+            content: emailContent
+          });
+          
+          await db.collection('venues').doc(venueId).update({
+            emailHistory,
+            lastContacted: new Date().toISOString(),
+            status: venue.status === 'Not Contacted' ? 'Waiting' : venue.status
+          });
+        } catch (error) {
+          console.error('Error logging email:', error);
+        }
+      }
+
+      function downloadCSV() {
+        const headers = [
+          'Venue Name', 'City', 'State', 'Played Before?', 'Phone Number',
+          'Email Address', 'Category', 'Notes / Last Called', 'Most Recent Booking',
+          'Address', 'Website/Social'
+        ];
+
+        const rows = venues.map(v => [
+          v.name || '', v.city || '', v.state || '',
+          v.playedBefore ? 'Yes' : '', v.phone || '', v.email || '',
+          v.category || '', v.notes || '', v.mostRecentlyPlayed || '',
+          v.address || '', v.website || ''
+        ]);
+
+        const csvContent = [
+          headers.join('\t'),
+          ...rows.map(row => row.join('\t'))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `venues_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      const filteredVenues = venues.filter(v => {
+        const matchesSearch = v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            v.city.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesFilter = filterStatus === 'All' || v.status === filterStatus;
+        const matchesRegion = filterRegion === 'All' || v.region === filterRegion;
+        return matchesSearch && matchesFilter && matchesRegion;
+      }).sort((a, b) => {
+        // Sort by city first
+        const cityCompare = (a.city || '').localeCompare(b.city || '');
+        if (cityCompare !== 0) return cityCompare;
+        
+        // Then by venue name within same city
+        return (a.name || '').localeCompare(b.name || '');
+      });
+
+      if (loading) {
+        return React.createElement('div', {
+          className: 'min-h-screen flex items-center justify-center'
+        }, React.createElement('div', {
+          className: 'text-white text-2xl'
+        }, 'Loading...'));
+      }
+
+      if (showBandSetup) {
+        return React.createElement(BandSetup, {
+          onSave: saveBandInfo,
+          initialData: bandInfo,
+          onCancel: bandInfo ? () => setShowBandSetup(false) : null,
+          onAutoAssign: bandInfo ? autoAssignRegions : null
+        });
+      }
+
+      if (showVenueForm) {
+        return React.createElement(VenueForm, {
+          venue: editingVenue,
+          onSave: editingVenue ? (updates) => updateVenue(editingVenue.id, updates) : addVenue,
+          onCancel: () => {
+            setShowVenueForm(false);
+            setEditingVenue(null);
+          }
+        });
+      }
+
+      if (showBulkImport) {
+        return React.createElement(BulkImport, {
+          onImport: async (venues) => {
+            if (!db) return;
+            try {
+              const batch = db.batch();
+              venues.forEach(venue => {
+                const docRef = db.collection('venues').doc();
+                batch.set(docRef, venue);
+              });
+              await batch.commit();
+              setShowBulkImport(false);
+            } catch (error) {
+              console.error('Error importing venues:', error);
+              alert('Error importing venues');
+            }
+          },
+          onCancel: () => setShowBulkImport(false)
+        });
+      }
+
+      if (viewingVenue) {
+        return React.createElement(VenueView, {
+          venue: viewingVenue,
+          onClose: () => setViewingVenue(null),
+          onEdit: () => {
+            setEditingVenue(viewingVenue);
+            setViewingVenue(null);
+            setShowVenueForm(true);
+          },
+          onEmail: () => {
+            setEmailVenue(viewingVenue);
+            setViewingVenue(null);
+          }
+        });
+      }
+
+      if (emailVenue) {
+        return React.createElement(EmailGenerator, {
+          venue: emailVenue,
+          bandInfo: bandInfo,
+          onClose: () => setEmailVenue(null),
+          onSend: logEmail
+        });
+      }
+
+      return React.createElement('div', {
+        className: 'min-h-screen p-4 pb-24'
+      },
+        // Header
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-6 mb-4'
+        },
+          React.createElement('div', {
+            className: 'flex items-center justify-between'
+          },
+            React.createElement('div', {
+              className: 'flex items-center gap-3'
+            },
+              React.createElement('div', {
+                className: 'bg-gradient-to-br from-cyan-400 to-blue-500 p-3 rounded-xl shadow-lg'
+              }, React.createElement(Icon, { name: 'Music', size: 32, className: 'text-white' })),
+              React.createElement('div', null,
+                React.createElement('h1', {
+                  className: 'text-2xl font-bold text-gray-900'
+                }, (bandInfo?.bandName || 'Band Manager')),
+                React.createElement('p', {
+                  className: 'text-sm text-gray-600'
+                }, venues.length + ' venues')
+              )
+            ),
+            React.createElement('div', {
+              className: 'flex gap-2'
+            },
+              React.createElement('button', {
+                onClick: downloadCSV,
+                className: 'p-3 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 transition-colors',
+                title: 'Download Venue List'
+              }, React.createElement(Icon, { name: 'Download', size: 24 })),
+              React.createElement('button', {
+                onClick: () => setShowBandSetup(true),
+                className: 'p-3 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors',
+                title: 'Settings'
+              }, React.createElement(Icon, { name: 'Settings', size: 24, className: 'text-gray-700' }))
+            )
+          )
+        ),
+
+        // Search & Filter
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-4 mb-4'
+        },
+          React.createElement('div', {
+            className: 'flex gap-2 mb-3'
+          },
+            React.createElement('div', {
+              className: 'flex-1 relative'
+            },
+              React.createElement('span', {
+                className: 'absolute left-3 top-1/2 -translate-y-1/2 text-gray-400'
+              }, React.createElement(Icon, { name: 'Search', size: 20 })),
+              React.createElement('input', {
+                type: 'text',
+                placeholder: 'Search venues or cities...',
+                value: searchTerm,
+                onChange: (e) => setSearchTerm(e.target.value),
+                className: 'w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+              })
+            ),
+            React.createElement('select', {
+              value: filterRegion,
+              onChange: (e) => setFilterRegion(e.target.value),
+              className: 'px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-medium focus:outline-none focus:border-purple-500 bg-white'
+            },
+              React.createElement('option', { value: 'All' }, 'All Regions'),
+              REGIONS_ORDER.map(region =>
+                React.createElement('option', { key: region, value: region }, region)
+              )
+            )
+          ),
+          React.createElement('div', {
+            className: 'flex gap-2 overflow-x-auto pb-2'
+          }, ['All', 'Not Contacted', 'Waiting', 'Booked', 'Passed'].map(status =>
+            React.createElement('button', {
+              key: status,
+              onClick: () => setFilterStatus(status),
+              className: `px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-colors ${
+                filterStatus === status
+                  ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`
+            }, status)
+          ))
+        ),
+
+        // Action Buttons
+        React.createElement('div', {
+          className: 'grid grid-cols-2 gap-3 mb-4'
+        },
+          React.createElement('button', {
+            onClick: () => setShowVenueForm(true),
+            className: 'bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2'
+          },
+            React.createElement(Icon, { name: 'Plus', size: 24 }),
+            'Add Venue'
+          ),
+          React.createElement('button', {
+            onClick: () => setShowBulkImport(true),
+            className: 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2'
+          },
+            React.createElement(Icon, { name: 'Upload', size: 24 }),
+            'Bulk Import'
+          )
+        ),
+
+        // No venues message
+        venues.length === 0 && React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-8 text-center'
+        },
+          React.createElement('p', {
+            className: 'text-gray-600 text-lg mb-4'
+          }, 'No venues yet!'),
+          React.createElement('button', {
+            onClick: loadSampleVenues,
+            className: 'bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-3 rounded-xl font-bold text-lg'
+          }, 'Load Sample Venues')
+        ),
+
+        // Venues list
+        React.createElement('div', {
+          className: 'space-y-3'
+        }, filteredVenues.map(venue =>
+          React.createElement(VenueCard, {
+            key: venue.id,
+            venue: venue,
+            onView: () => setViewingVenue(venue),
+            onEdit: () => {
+              setEditingVenue(venue);
+              setShowVenueForm(true);
+            },
+            onDelete: () => deleteVenue(venue.id),
+            onEmail: () => setEmailVenue(venue)
+          })
+        ))
+      );
+    }
+
+    // ============================================
+    // BAND SETUP COMPONENT
+    // ============================================
+    function BandSetup({ onSave, initialData, onCancel, onAutoAssign }) {
+      const [bandName, setBandName] = React.useState(initialData?.bandName || '');
+      const [bandleaderName, setBandleaderName] = React.useState(initialData?.bandleaderName || '');
+      const [bio, setBio] = React.useState(initialData?.bio || '');
+
+      function handleSave() {
+        if (!bandName || !bandleaderName) {
+          alert('Please fill in band name and your name');
+          return;
+        }
+        onSave({ bandName, bandleaderName, bio });
+      }
+
+      function handleSaveAndAutoAssign() {
+        if (!bandName || !bandleaderName) {
+          alert('Please fill in band name and your name');
+          return;
+        }
+        onSave({ bandName, bandleaderName, bio });
+        if (onAutoAssign) {
+          setTimeout(onAutoAssign, 500);
+        }
+      }
+
+      return React.createElement('div', {
+        className: 'min-h-screen p-4 flex items-center justify-center'
+      },
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full'
+        },
+          React.createElement('div', {
+            className: 'text-center mb-6'
+          },
+            React.createElement('div', {
+              className: 'bg-gradient-to-br from-purple-500 to-blue-500 p-4 rounded-xl inline-block mb-4'
+            }, React.createElement(Icon, { name: 'Music', size: 48, className: 'text-white' })),
+            React.createElement('h1', {
+              className: 'text-3xl font-bold text-gray-900 mb-2'
+            }, 'Band Setup'),
+            React.createElement('p', {
+              className: 'text-gray-600'
+            }, "Let's get your info set up")
+          ),
+          React.createElement('div', {
+            className: 'space-y-4'
+          },
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Band Name'),
+              React.createElement('input', {
+                type: 'text',
+                value: bandName,
+                onChange: (e) => setBandName(e.target.value),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'Your Band Name'
+              })
+            ),
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Your Name'),
+              React.createElement('input', {
+                type: 'text',
+                value: bandleaderName,
+                onChange: (e) => setBandleaderName(e.target.value),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'Your Name'
+              })
+            ),
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Band Bio (Optional)'),
+              React.createElement('textarea', {
+                value: bio,
+                onChange: (e) => setBio(e.target.value),
+                rows: 4,
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'Tell venues about your band...'
+              })
+            ),
+            React.createElement('div', {
+              className: onCancel ? 'flex gap-3' : ''
+            },
+              onCancel && React.createElement('button', {
+                onClick: onCancel,
+                className: 'flex-1 bg-gray-200 text-gray-700 py-4 rounded-xl font-bold text-xl'
+              }, 'Cancel'),
+              React.createElement('button', {
+                onClick: handleSave,
+                className: `${onCancel ? 'flex-1' : 'w-full'} bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 rounded-xl font-bold text-xl shadow-lg hover:shadow-xl transition-all`
+              }, 'Save & Continue')
+            ),
+            
+            onAutoAssign && React.createElement('button', {
+              onClick: handleSaveAndAutoAssign,
+              className: 'w-full mt-3 bg-blue-500 text-white py-3 rounded-xl font-medium text-lg'
+            }, 'Save & Auto-Assign Regions to All Venues')
+          )
+        )
+      );
+    }
+
+    // ============================================
+    // VENUE CARD COMPONENT  
+    // ============================================
+    function VenueCard({ venue, onView, onEdit, onDelete, onEmail }) {
+      const statusColors = {
+        'Not Contacted': 'bg-gray-200 text-gray-700',
+        'Waiting': 'bg-yellow-200 text-yellow-800',
+        'Booked': 'bg-green-200 text-green-800',
+        'Passed': 'bg-red-200 text-red-800'
+      };
+
+      return React.createElement('div', {
+        className: 'bg-white rounded-xl shadow-lg p-5'
+      },
+        React.createElement('div', {
+          className: 'flex items-start justify-between mb-3'
+        },
+          React.createElement('div', {
+            className: 'flex-1'
+          },
+            React.createElement('h3', {
+              className: 'text-xl font-bold text-gray-900'
+            }, venue.name),
+            React.createElement('p', {
+              className: 'text-gray-600'
+            }, venue.city + (venue.state ? ', ' + venue.state : '')),
+            venue.region && React.createElement('p', {
+              className: 'text-sm text-purple-600 font-medium mt-1'
+            }, venue.region)
+          ),
+          React.createElement('span', {
+            className: `px-3 py-1 rounded-full text-sm font-semibold ${statusColors[venue.status]}`
+          }, venue.status)
+        ),
+
+        venue.lastContacted && React.createElement('p', {
+          className: 'text-sm text-gray-500 mb-3'
+        }, 'Last contacted: ' + new Date(venue.lastContacted).toLocaleDateString()),
+
+        React.createElement('div', {
+          className: 'flex flex-wrap gap-2 mb-4'
+        },
+          venue.phone && React.createElement('a', {
+            href: `tel:${venue.phone}`,
+            className: 'flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium'
+          },
+            React.createElement(Icon, { name: 'Phone', size: 18 }),
+            'Call'
+          ),
+          (venue.address || venue.city) && React.createElement('a', {
+            href: venue.address 
+              ? `https://maps.google.com/?q=${encodeURIComponent(venue.address + ', ' + venue.city + ', ' + venue.state)}`
+              : `https://maps.google.com/?q=${encodeURIComponent(venue.city + ', ' + venue.state)}`,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            className: 'flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg font-medium'
+          },
+            React.createElement(Icon, { name: 'MapPin', size: 18 }),
+            'Map'
+          )
+        ),
+
+        React.createElement('div', {
+          className: 'flex flex-wrap gap-2'
+        },
+          React.createElement('button', {
+            onClick: onView,
+            className: 'flex-1 min-w-[100px] bg-purple-500 text-white py-2 rounded-lg font-medium'
+          }, 'View'),
+          React.createElement('button', {
+            onClick: onEmail,
+            className: 'flex-1 min-w-[100px] bg-blue-500 text-white py-2 rounded-lg font-medium'
+          }, 'Compose Email'),
+          React.createElement('button', {
+            onClick: onEdit,
+            className: 'p-2 bg-gray-100 text-gray-700 rounded-lg'
+          }, React.createElement(Icon, { name: 'Edit', size: 20 })),
+          React.createElement('button', {
+            onClick: onDelete,
+            className: 'p-2 bg-red-100 text-red-700 rounded-lg'
+          }, React.createElement(Icon, { name: 'Trash2', size: 20 }))
+        )
+      );
+    }
+
+    // ============================================
+    // VENUE FORM COMPONENT
+    // ============================================
+    function VenueForm({ venue, onSave, onCancel }) {
+      const [formData, setFormData] = React.useState(venue || {
+        name: '', city: '', state: '', phone: '', email: '', address: '', notes: '',
+        playedBefore: false, category: '', mostRecentlyPlayed: '', website: '', region: '',
+        status: 'Not Contacted'
+      });
+
+      // Auto-assign region when city changes
+      React.useEffect(() => {
+        if (formData.city && !venue) {
+          const autoRegion = getRegionForCity(formData.city);
+          if (autoRegion && autoRegion !== formData.region) {
+            setFormData(prev => ({ ...prev, region: autoRegion }));
+          }
+        }
+      }, [formData.city]);
+
+      function handleSubmit() {
+        if (!formData.name || !formData.city) {
+          alert('Please fill in venue name and city');
+          return;
+        }
+        onSave(formData);
+      }
+
+      return React.createElement('div', {
+        className: 'min-h-screen p-4'
+      },
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-6 max-w-2xl mx-auto'
+        },
+          React.createElement('h2', {
+            className: 'text-2xl font-bold text-gray-900 mb-6'
+          }, venue ? 'Edit Venue' : 'Add New Venue'),
+
+          React.createElement('div', {
+            className: 'space-y-4'
+          },
+            // Name
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Venue Name *'),
+              React.createElement('input', {
+                type: 'text',
+                value: formData.name,
+                onChange: (e) => setFormData({...formData, name: e.target.value}),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+              })
+            ),
+
+            // City & State
+            React.createElement('div', {
+              className: 'grid grid-cols-2 gap-3'
+            },
+              React.createElement('div', null,
+                React.createElement('label', {
+                  className: 'block text-lg font-semibold text-gray-700 mb-2'
+                }, 'City *'),
+                React.createElement('input', {
+                  type: 'text',
+                  value: formData.city,
+                  onChange: (e) => setFormData({...formData, city: e.target.value}),
+                  className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+                })
+              ),
+              React.createElement('div', null,
+                React.createElement('label', {
+                  className: 'block text-lg font-semibold text-gray-700 mb-2'
+                }, 'State'),
+                React.createElement('input', {
+                  type: 'text',
+                  value: formData.state,
+                  onChange: (e) => setFormData({...formData, state: e.target.value}),
+                  className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+                })
+              )
+            ),
+
+            // Phone & Email
+            React.createElement('div', {
+              className: 'grid grid-cols-2 gap-3'
+            },
+              React.createElement('div', null,
+                React.createElement('label', {
+                  className: 'block text-lg font-semibold text-gray-700 mb-2'
+                }, 'Phone'),
+                React.createElement('input', {
+                  type: 'tel',
+                  value: formData.phone,
+                  onChange: (e) => setFormData({...formData, phone: e.target.value}),
+                  className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+                })
+              ),
+              React.createElement('div', null,
+                React.createElement('label', {
+                  className: 'block text-lg font-semibold text-gray-700 mb-2'
+                }, 'Email'),
+                React.createElement('input', {
+                  type: 'email',
+                  value: formData.email,
+                  onChange: (e) => setFormData({...formData, email: e.target.value}),
+                  className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+                })
+              )
+            ),
+
+            // Address
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Address'),
+              React.createElement('input', {
+                type: 'text',
+                value: formData.address,
+                onChange: (e) => setFormData({...formData, address: e.target.value}),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+              })
+            ),
+
+            // Notes
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Notes'),
+              React.createElement('textarea', {
+                value: formData.notes,
+                onChange: (e) => setFormData({...formData, notes: e.target.value}),
+                rows: 3,
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+              })
+            ),
+
+            // Played Before & Most Recently Played
+            React.createElement('div', {
+              className: 'grid grid-cols-2 gap-3'
+            },
+              React.createElement('div', null,
+                React.createElement('label', {
+                  className: 'block text-lg font-semibold text-gray-700 mb-2'
+                }, 'Played Before?'),
+                React.createElement('div', {
+                  className: 'flex gap-3'
+                },
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => setFormData({...formData, playedBefore: true}),
+                    className: `flex-1 py-3 rounded-lg font-medium ${
+                      formData.playedBefore
+                        ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700'
+                    }`
+                  }, 'Yes'),
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => setFormData({...formData, playedBefore: false}),
+                    className: `flex-1 py-3 rounded-lg font-medium ${
+                      !formData.playedBefore
+                        ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700'
+                    }`
+                  }, 'No')
+                )
+              ),
+              React.createElement('div', null,
+                React.createElement('label', {
+                  className: 'block text-lg font-semibold text-gray-700 mb-2'
+                }, 'Most Recently Played'),
+                React.createElement('input', {
+                  type: 'date',
+                  value: formData.mostRecentlyPlayed || '',
+                  onChange: (e) => setFormData({...formData, mostRecentlyPlayed: e.target.value}),
+                  className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+                })
+              )
+            ),
+
+            // Category
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Category'),
+              React.createElement('input', {
+                type: 'text',
+                value: formData.category,
+                onChange: (e) => setFormData({...formData, category: e.target.value}),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'e.g., Yahoo Venue List'
+              })
+            ),
+
+            // Region
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Region (auto-filled)'),
+              React.createElement('select', {
+                value: formData.region || '',
+                onChange: (e) => setFormData({...formData, region: e.target.value}),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500 bg-white'
+              },
+                React.createElement('option', { value: '' }, '-- Select Region --'),
+                REGIONS_ORDER.map(region =>
+                  React.createElement('option', { key: region, value: region }, region)
+                )
+              )
+            ),
+
+            // Status
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Status'),
+              React.createElement('select', {
+                value: formData.status || 'Not Contacted',
+                onChange: (e) => setFormData({...formData, status: e.target.value}),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500 bg-white'
+              },
+                ['Not Contacted', 'Waiting', 'Booked', 'Passed'].map(status =>
+                  React.createElement('option', { key: status, value: status }, status)
+                )
+              )
+            ),
+
+            // Website
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Website'),
+              React.createElement('input', {
+                type: 'url',
+                value: formData.website,
+                onChange: (e) => setFormData({...formData, website: e.target.value}),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'https://...'
+              })
+            ),
+
+            // Buttons
+            React.createElement('div', {
+              className: 'flex gap-3 pt-4'
+            },
+              React.createElement('button', {
+                onClick: onCancel,
+                className: 'flex-1 bg-gray-200 text-gray-700 py-4 rounded-xl font-bold text-xl'
+              }, 'Cancel'),
+              React.createElement('button', {
+                onClick: handleSubmit,
+                className: 'flex-1 bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 rounded-xl font-bold text-xl'
+              }, venue ? 'Update Venue' : 'Add Venue')
+            )
+          )
+        )
+      );
+    }
+
+    // ============================================
+    // VENUE VIEW COMPONENT
+    // ============================================
+    function VenueView({ venue, onClose, onEdit, onEmail }) {
+      return React.createElement('div', {
+        className: 'min-h-screen p-4'
+      },
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-6 max-w-2xl mx-auto'
+        },
+          // Header
+          React.createElement('div', {
+            className: 'flex items-center justify-between mb-6'
+          },
+            React.createElement('h2', {
+              className: 'text-2xl font-bold text-gray-900'
+            }, venue.name),
+            React.createElement('button', {
+              onClick: onClose,
+              className: 'p-2 hover:bg-gray-100 rounded-lg'
+            }, React.createElement(Icon, { name: 'X', size: 24 }))
+          ),
+
+          // Status
+          React.createElement('div', {
+            className: 'mb-6'
+          },
+            React.createElement('span', {
+              className: `inline-block px-4 py-2 rounded-full text-sm font-semibold ${
+                venue.status === 'Not Contacted' ? 'bg-gray-200 text-gray-700' :
+                venue.status === 'Waiting' ? 'bg-yellow-200 text-yellow-800' :
+                venue.status === 'Booked' ? 'bg-green-200 text-green-800' :
+                'bg-red-200 text-red-800'
+              }`
+            }, venue.status)
+          ),
+
+          // Contact Info
+          React.createElement('div', {
+            className: 'bg-gray-50 rounded-xl p-4 space-y-3 mb-4'
+          },
+            React.createElement('h4', {
+              className: 'font-semibold text-gray-700 mb-3'
+            }, 'Contact Information'),
+            
+            React.createElement('div', {
+              className: 'flex items-center gap-3'
+            },
+              React.createElement(Icon, { name: 'Phone', size: 20, className: 'text-gray-500' }),
+              React.createElement('div', null,
+                React.createElement('p', {
+                  className: 'text-sm text-gray-500'
+                }, 'Phone'),
+                venue.phone ? React.createElement('a', {
+                  href: `tel:${venue.phone}`,
+                  className: 'text-lg text-blue-600 font-medium hover:underline'
+                }, venue.phone) : React.createElement('p', {
+                  className: 'text-lg text-gray-400'
+                }, 'Not provided')
+              )
+            ),
+
+            React.createElement('div', {
+              className: 'flex items-center gap-3'
+            },
+              React.createElement(Icon, { name: 'Mail', size: 20, className: 'text-gray-500' }),
+              React.createElement('div', null,
+                React.createElement('p', {
+                  className: 'text-sm text-gray-500'
+                }, 'Email'),
+                venue.email ? React.createElement('a', {
+                  href: `mailto:${venue.email}`,
+                  className: 'text-lg text-blue-600 font-medium hover:underline break-all'
+                }, venue.email) : React.createElement('p', {
+                  className: 'text-lg text-gray-400'
+                }, 'Not provided')
+              )
+            ),
+
+            React.createElement('div', {
+              className: 'flex items-center gap-3'
+            },
+              React.createElement(Icon, { name: 'MapPin', size: 20, className: 'text-gray-500' }),
+              React.createElement('div', null,
+                React.createElement('p', {
+                  className: 'text-sm text-gray-500'
+                }, 'Address'),
+                venue.address ? React.createElement('a', {
+                  href: `https://maps.google.com/?q=${encodeURIComponent(venue.address)}`,
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                  className: 'text-lg text-blue-600 font-medium hover:underline'
+                }, venue.address) : React.createElement('p', {
+                  className: 'text-lg text-gray-400'
+                }, 'Not provided')
+              )
+            ),
+
+            venue.website && React.createElement('div', {
+              className: 'flex items-center gap-3'
+            },
+              React.createElement(Icon, { name: 'MapPin', size: 20, className: 'text-gray-500' }),
+              React.createElement('div', null,
+                React.createElement('p', {
+                  className: 'text-sm text-gray-500'
+                }, 'Website'),
+                React.createElement('a', {
+                  href: venue.website,
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                  className: 'text-lg text-blue-600 font-medium hover:underline break-all'
+                }, venue.website)
+              )
+            )
+          ),
+
+          // Venue Details
+          React.createElement('div', {
+            className: 'bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-4'
+          },
+            React.createElement('h4', {
+              className: 'font-semibold text-gray-700 mb-3'
+            }, 'Venue Details'),
+            React.createElement('div', {
+              className: 'space-y-2'
+            },
+              venue.region && React.createElement('p', {
+                className: 'text-gray-800'
+              },
+                React.createElement('span', {
+                  className: 'font-semibold'
+                }, 'Region: '),
+                venue.region
+              ),
+              React.createElement('p', {
+                className: 'text-gray-800'
+              },
+                React.createElement('span', {
+                  className: 'font-semibold'
+                }, 'Played Before: '),
+                venue.playedBefore ? 'Yes' : 'No'
+              ),
+              React.createElement('p', {
+                className: 'text-gray-800'
+              },
+                React.createElement('span', {
+                  className: 'font-semibold'
+                }, 'Most Recently Played: '),
+                venue.mostRecentlyPlayed ? new Date(venue.mostRecentlyPlayed).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Never'
+              ),
+              React.createElement('p', {
+                className: 'text-gray-800'
+              },
+                React.createElement('span', {
+                  className: 'font-semibold'
+                }, 'Category: '),
+                venue.category || 'None'
+              )
+            )
+          ),
+
+          // Notes
+          React.createElement('div', {
+            className: 'bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 mb-4'
+          },
+            React.createElement('h4', {
+              className: 'font-semibold text-gray-700 mb-2'
+            }, 'Notes'),
+            venue.notes ? React.createElement('p', {
+              className: 'text-gray-800'
+            }, venue.notes) : React.createElement('p', {
+              className: 'text-gray-400 italic'
+            }, 'No notes')
+          ),
+
+          // Email History
+          venue.emailHistory && venue.emailHistory.length > 0 && React.createElement('div', {
+            className: 'bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4'
+          },
+            React.createElement('h4', {
+              className: 'font-semibold text-gray-700 mb-3'
+            }, 'Email History'),
+            React.createElement('div', {
+              className: 'space-y-2'
+            }, venue.emailHistory.map((email, idx) =>
+              React.createElement('div', {
+                key: idx,
+                className: 'text-sm'
+              },
+                React.createElement('p', {
+                  className: 'font-semibold text-gray-800'
+                }, email.type + ' - ' + new Date(email.date).toLocaleDateString())
+              )
+            ))
+          ),
+
+          // Action Buttons
+          React.createElement('div', {
+            className: 'flex gap-3'
+          },
+            React.createElement('button', {
+              onClick: onClose,
+              className: 'flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-bold'
+            }, 'Close'),
+            React.createElement('button', {
+              onClick: onEdit,
+              className: 'flex-1 bg-blue-500 text-white py-3 rounded-xl font-bold'
+            }, 'Edit'),
+            React.createElement('button', {
+              onClick: onEmail,
+              className: 'flex-1 bg-purple-500 text-white py-3 rounded-xl font-bold'
+            }, 'Compose Email')
+          )
+        )
+      );
+    }
+
+    // ============================================
+    // EMAIL GENERATOR COMPONENT
+    // ============================================
+    function EmailGenerator({ venue, bandInfo, onClose, onSend }) {
+      const [emailType, setEmailType] = React.useState('First Contact');
+      const [gigDate, setGigDate] = React.useState('');
+      const [specialDetails, setSpecialDetails] = React.useState('');
+      const [generatedEmail, setGeneratedEmail] = React.useState('');
+      const [copied, setCopied] = React.useState(false);
+
+      React.useEffect(() => {
+        generateEmail();
+      }, [emailType, gigDate, specialDetails]);
+
+      function generateEmail() {
+        let email = '';
+        
+        let formattedDate = '';
+        if (gigDate) {
+          const [year, month, day] = gigDate.split('-');
+          const date = new Date(year, month - 1, day);
+          formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        
+        if (emailType === 'First Contact') {
+          email = `Subject: ${bandInfo.bandName} - Booking Inquiry
+
+Hi there,
+
+My name is ${bandInfo.bandleaderName} and I'm the bandleader for ${bandInfo.bandName}.${bandInfo.bio ? ' ' + bandInfo.bio : ''}
+We'd love to perform at ${venue.name}${gigDate ? ` on ${formattedDate}` : ''}. ${specialDetails}
+
+Would you have any availability for us? We're flexible on dates and always put on a great show.
+
+Looking forward to hearing from you!
+
+Best regards,
+${bandInfo.bandleaderName}
+${bandInfo.bandName}`;
+        } else if (emailType === 'Follow Up') {
+          email = `Subject: Following Up - ${bandInfo.bandName}
+
+Hi there,
+
+I wanted to follow up on my previous email about ${bandInfo.bandName} performing at ${venue.name}${gigDate ? ` on ${formattedDate}` : ''}.
+
+${specialDetails || 'We\'re still very interested in playing your venue and would love to discuss available dates.'}
+
+Please let me know if you have any questions or would like to hear our music.
+
+Thanks,
+${bandInfo.bandleaderName}
+${bandInfo.bandName}`;
+        } else {
+          email = `Subject: Confirming ${bandInfo.bandName} Performance
+
+Hi there,
+
+I wanted to confirm our upcoming performance at ${venue.name}${gigDate ? ` on ${formattedDate}` : ''}.
+
+${specialDetails || 'Please let me know if you need any additional information from us.'}
+
+Looking forward to playing for you!
+
+Best,
+${bandInfo.bandleaderName}
+${bandInfo.bandName}`;
+        }
+        
+        setGeneratedEmail(email);
+      }
+
+      async function copyToClipboard() {
+        try {
+          await navigator.clipboard.writeText(generatedEmail);
+          setCopied(true);
+          await onSend(venue.id, emailType, generatedEmail);
+          setTimeout(() => setCopied(false), 2000);
+        } catch (error) {
+          console.error('Copy failed:', error);
+        }
+      }
+
+      function sendEmail() {
+        const subjectMatch = generatedEmail.match(/^Subject: (.+)$/m);
+        const subject = subjectMatch ? subjectMatch[1] : 'Booking Inquiry';
+        
+        const bodyStart = generatedEmail.indexOf('\n\n') + 2;
+        const body = generatedEmail.substring(bodyStart);
+        
+        // Replace \n with %0D%0A for proper line breaks in mailto
+        const encodedBody = body.replace(/\n/g, '%0D%0A');
+        
+        const mailtoLink = `mailto:${venue.email}?subject=${encodeURIComponent(subject)}&body=${encodedBody}`;
+        
+        const link = document.createElement('a');
+        link.href = mailtoLink;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        onSend(venue.id, emailType, generatedEmail);
+      }
+
+      return React.createElement('div', {
+        className: 'min-h-screen p-4'
+      },
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-6 max-w-2xl mx-auto'
+        },
+          React.createElement('div', {
+            className: 'flex items-center justify-between mb-6'
+          },
+            React.createElement('div', null,
+              React.createElement('h2', {
+                className: 'text-2xl font-bold text-gray-900'
+              }, 'Email Generator'),
+              React.createElement('p', {
+                className: 'text-gray-600'
+              }, venue.name)
+            ),
+            React.createElement('button', {
+              onClick: onClose,
+              className: 'p-2 hover:bg-gray-100 rounded-lg'
+            }, React.createElement(Icon, { name: 'X', size: 24 }))
+          ),
+
+          React.createElement('div', {
+            className: 'space-y-4 mb-6'
+          },
+            // Email Type
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Email Type'),
+              React.createElement('div', {
+                className: 'grid grid-cols-3 gap-2'
+              }, ['First Contact', 'Follow Up', 'Confirm Details'].map(type =>
+                React.createElement('button', {
+                  key: type,
+                  onClick: () => setEmailType(type),
+                  className: `py-3 rounded-lg font-medium ${
+                    emailType === type
+                      ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-700'
+                  }`
+                }, type)
+              ))
+            ),
+
+            // Preferred Date
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Preferred Date (Optional)'),
+              React.createElement('input', {
+                type: 'date',
+                value: gigDate,
+                onChange: (e) => setGigDate(e.target.value),
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+              })
+            ),
+
+            // Special Details
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Special Details (Optional)'),
+              React.createElement('textarea', {
+                value: specialDetails,
+                onChange: (e) => setSpecialDetails(e.target.value),
+                rows: 2,
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
+                placeholder: 'Any special info to include...'
+              })
+            )
+          ),
+
+          // Generated Email
+          React.createElement('div', {
+            className: 'bg-gray-50 rounded-xl p-4 mb-4'
+          },
+            React.createElement('h3', {
+              className: 'font-semibold text-gray-700 mb-2'
+            }, 'Generated Email:'),
+            React.createElement('textarea', {
+              value: generatedEmail,
+              onChange: (e) => setGeneratedEmail(e.target.value),
+              rows: 15,
+              className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-mono bg-white focus:outline-none focus:border-purple-500'
+            })
+          ),
+
+          // Action Buttons
+          React.createElement('div', {
+            className: 'flex gap-3'
+          },
+            React.createElement('button', {
+              onClick: copyToClipboard,
+              className: 'flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2'
+            },
+              copied 
+                ? React.createElement(React.Fragment, null,
+                    React.createElement(Icon, { name: 'Check', size: 24 }),
+                    'Copied!'
+                  )
+                : React.createElement(React.Fragment, null,
+                    React.createElement(Icon, { name: 'Copy', size: 24 }),
+                    'Copy'
+                  )
+            ),
+            React.createElement('button', {
+              onClick: sendEmail,
+              className: 'flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2'
+            },
+              React.createElement(Icon, { name: 'Mail', size: 24 }),
+              'Send Email'
+            )
+          )
+        )
+      );
+    }
+
+    // ============================================
+    // BULK IMPORT COMPONENT
+    // ============================================
+    function BulkImport({ onImport, onCancel }) {
+      const [pastedData, setPastedData] = React.useState('');
+      const [preview, setPreview] = React.useState([]);
+
+      function parseData() {
+        const lines = pastedData.trim().split('\n');
+        const venues = [];
+        
+        lines.forEach((line, idx) => {
+          if (idx === 0) return; // Skip header
+          const parts = line.split('\t');
+          if (parts.length >= 2 && parts[0] && parts[1]) {
+            const city = parts[1] || '';
+            const region = getRegionForCity(city);
+            venues.push({
+              name: parts[0] || '',
+              city: city,
+              state: parts[2] || '',
+              playedBefore: parts[3]?.toLowerCase() === 'yes' || parts[3]?.toLowerCase() === 'true',
+              phone: parts[4] || '',
+              email: parts[5] || '',
+              category: parts[6] || '',
+              notes: parts[7] || '',
+              mostRecentlyPlayed: parts[8] || null,
+              address: parts[9] || '',
+              website: parts[10] || '',
+              region: region,
+              status: 'Not Contacted',
+              lastContacted: null,
+              emailHistory: []
+            });
+          }
+        });
+        
+        setPreview(venues);
+      }
+
+      return React.createElement('div', {
+        className: 'min-h-screen p-4'
+      },
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-6 max-w-4xl mx-auto'
+        },
+          React.createElement('div', {
+            className: 'flex items-center justify-between mb-6'
+          },
+            React.createElement('h2', {
+              className: 'text-2xl font-bold text-gray-900'
+            }, 'Bulk Import Venues'),
+            React.createElement('button', {
+              onClick: onCancel,
+              className: 'p-2 hover:bg-gray-100 rounded-lg'
+            }, React.createElement(Icon, { name: 'X', size: 24 }))
+          ),
+
+          React.createElement('div', {
+            className: 'mb-6'
+          },
+            React.createElement('p', {
+              className: 'text-gray-600 mb-4'
+            }, 'Paste your tab-separated data from Excel. Expected columns: Venue Name, City, State, Played Before?, Phone, Email, Category, Notes, Most Recent Booking, Address, Website'),
+            React.createElement('textarea', {
+              value: pastedData,
+              onChange: (e) => setPastedData(e.target.value),
+              rows: 10,
+              className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:border-purple-500',
+              placeholder: 'Paste your Excel data here (include header row)...'
+            })
+          ),
+
+          React.createElement('div', {
+            className: 'flex gap-3 mb-6'
+          },
+            React.createElement('button', {
+              onClick: parseData,
+              className: 'flex-1 bg-blue-500 text-white py-3 rounded-xl font-bold text-lg'
+            }, 'Preview Import')
+          ),
+
+          preview.length > 0 && React.createElement(React.Fragment, null,
+            React.createElement('div', {
+              className: 'bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4'
+            },
+              React.createElement('p', {
+                className: 'text-green-800 font-semibold'
+              }, '✓ Found ' + preview.length + ' venues to import')
+            ),
+
+            React.createElement('div', {
+              className: 'max-h-96 overflow-y-auto mb-6 space-y-2'
+            },
+              preview.slice(0, 10).map((venue, idx) =>
+                React.createElement('div', {
+                  key: idx,
+                  className: 'bg-gray-50 p-3 rounded-lg'
+                },
+                  React.createElement('p', {
+                    className: 'font-semibold'
+                  }, venue.name),
+                  React.createElement('p', {
+                    className: 'text-sm text-gray-600'
+                  }, venue.city + ', ' + venue.state)
+                )
+              ),
+              preview.length > 10 && React.createElement('p', {
+                className: 'text-center text-gray-500'
+              }, '...and ' + (preview.length - 10) + ' more')
+            ),
+
+            React.createElement('button', {
+              onClick: () => onImport(preview),
+              className: 'w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg'
+            }, 'Import ' + preview.length + ' Venues')
+          )
+        )
+      );
+    }
+
+    // ============================================
+    // RENDER APP
+    // ============================================
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>
