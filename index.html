@@ -2472,47 +2472,90 @@ Facebook: https://www.facebook.com/calicrix/`;
           website: ''
         };
 
-        // Try to find venue name (usually first substantial line)
-        for (let i = 0; i < Math.min(3, lines.length); i++) {
-          if (lines[i].trim().length > 3 && !lines[i].match(/^\d/) && !lines[i].match(/^http/i)) {
-            venue.name = lines[i].trim();
+        // Clean up text - remove common OCR artifacts
+        const cleanText = text.replace(/[|]/g, 'I').replace(/\s+/g, ' ');
+
+        // Find venue name - first substantial line that's not a menu item or common word
+        const skipWords = /^(overview|menu|reviews|photos|updates|open|closed|know|before|you|go|new|ask|question|saved|starred|places|by|summarized|with|ai)/i;
+        for (let i = 0; i < Math.min(5, lines.length); i++) {
+          const line = lines[i].trim();
+          if (line.length > 3 && 
+              !line.match(/^\d/) && 
+              !line.match(/^http/i) &&
+              !skipWords.test(line) &&
+              !line.match(/^[\d\s\-\(\)]+$/) &&
+              line.length < 60) {
+            venue.name = line.replace(/\s+/g, ' ').trim();
             break;
           }
         }
 
-        // Find phone number (various formats)
+        // Find phone number (multiple formats)
         const phoneRegex = /(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/;
-        const phoneMatch = text.match(phoneRegex);
+        const phoneMatch = cleanText.match(phoneRegex);
         if (phoneMatch) {
           venue.phone = phoneMatch[1];
         }
 
-        // Find website
-        const websiteRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-z0-9-]+\.(com|net|org|co|us|ca|uk|au)[^\s]*)/i;
-        const websiteMatch = text.match(websiteRegex);
+        // Find website - more flexible matching
+        const websiteRegex = /(https?:\/\/[^\s]+|(?:www\.)?[a-z0-9-]+\.(?:com|net|org|co|us|ca|uk|au|io|space)(?:\/[^\s]*)?)/i;
+        const websiteMatch = cleanText.match(websiteRegex);
         if (websiteMatch) {
-          let site = websiteMatch[1];
+          let site = websiteMatch[1].replace(/[,\s]+$/, ''); // Remove trailing comma/space
           if (!site.startsWith('http')) {
             site = 'https://' + site;
           }
           venue.website = site;
         }
 
-        // Find address (look for street number + street name, city, state zip)
-        const addressRegex = /(\d+\s+[A-Za-z0-9\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Place|Pl)[^,\n]*),?\s*([A-Za-z\s]+),?\s*([A-Z]{2})\s*(\d{5})/i;
-        const addressMatch = text.match(addressRegex);
-        if (addressMatch) {
-          venue.address = addressMatch[1].trim() + ', ' + addressMatch[2].trim() + ', ' + addressMatch[3] + ' ' + addressMatch[4];
-          venue.city = addressMatch[2].trim();
-          venue.state = addressMatch[3];
+        // Find full address with better pattern matching
+        // Pattern 1: Street number + name, city, state zip (e.g., "10 E Rte 66, Flagstaff, AZ 86001")
+        const fullAddressRegex = /(\d+\s+(?:[NSEW]\s+)?(?:Rte|Route|Highway|Hwy|[A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)*?)(?:\s+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Place|Pl|Circle|Cir|Parkway|Pkwy|Route|Rte))?)[\s,]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)[\s,]+([A-Z]{2})[\s,]+(\d{5})/i;
+        const fullAddressMatch = cleanText.match(fullAddressRegex);
+        
+        if (fullAddressMatch) {
+          const street = fullAddressMatch[1].trim();
+          const city = fullAddressMatch[2].trim();
+          const state = fullAddressMatch[3].toUpperCase();
+          const zip = fullAddressMatch[4];
+          
+          venue.address = `${street}, ${city}, ${state} ${zip}`;
+          venue.city = city;
+          venue.state = state;
         } else {
-          // Try simpler city, state pattern
-          const cityStateRegex = /([A-Za-z\s]+),?\s*([A-Z]{2})\s*(\d{5})?/;
-          const cityStateMatch = text.match(cityStateRegex);
-          if (cityStateMatch) {
-            venue.city = cityStateMatch[1].trim();
-            venue.state = cityStateMatch[2];
+          // Pattern 2: Try to find city, state, zip separately
+          const cityStateZipRegex = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)[\s,]+([A-Z]{2})[\s,]+(\d{5})/;
+          const cityStateZipMatch = cleanText.match(cityStateZipRegex);
+          
+          if (cityStateZipMatch) {
+            venue.city = cityStateZipMatch[1].trim();
+            venue.state = cityStateZipMatch[2].toUpperCase();
+            
+            // Try to find street address before city
+            const streetBeforeCityRegex = new RegExp(`(\\d+\\s+[^\\n,]+?)(?=[,\\s]*${venue.city})`, 'i');
+            const streetMatch = cleanText.match(streetBeforeCityRegex);
+            if (streetMatch) {
+              venue.address = `${streetMatch[1].trim()}, ${venue.city}, ${venue.state} ${cityStateZipMatch[3]}`;
+            } else {
+              venue.address = `${venue.city}, ${venue.state} ${cityStateZipMatch[3]}`;
+            }
+          } else {
+            // Pattern 3: Just city and state (no zip)
+            const cityStateRegex = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)[\s,]+([A-Z]{2})(?:\s|$)/;
+            const cityStateMatch = cleanText.match(cityStateRegex);
+            if (cityStateMatch) {
+              venue.city = cityStateMatch[1].trim();
+              venue.state = cityStateMatch[2].toUpperCase();
+            }
           }
+        }
+
+        // Clean up venue name - remove extra spaces, fix capitalization issues
+        if (venue.name) {
+          venue.name = venue.name
+            .replace(/\s+/g, ' ')
+            .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space before capital letters
+            .trim();
         }
 
         return venue;
