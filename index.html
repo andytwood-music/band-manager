@@ -2553,6 +2553,8 @@ Facebook: https://www.facebook.com/calicrix/`;
         // Clean up venue name - remove extra spaces, fix capitalization issues, remove OCR garbage
         if (venue.name) {
           venue.name = venue.name
+            .replace(/^["']/, '') // Remove leading quote
+            .replace(/["']$/, '') // Remove trailing quote
             .replace(/\s+/g, ' ')
             .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space before capital letters
             .replace(/\s+(th|st|nd|rd)\s+[A-Z]\s*[|].*$/i, '') // Remove "th X |" type garbage from icons
