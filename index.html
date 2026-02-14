@@ -365,11 +365,11 @@
       async function addVenue(venue) {
         if (!db) return;
         try {
-          const region = getRegionForCity(venue.city);
+          const region = venue.region || getRegionForCity(venue.city);
           await db.collection('venues').add({
             ...venue,
             region: region,
-            status: 'Not Contacted',
+            status: venue.status || 'Not Contacted',
             lastContacted: null,
             emailHistory: []
           });
