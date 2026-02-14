@@ -605,7 +605,7 @@
         return React.createElement(VenueForm, {
           venue: editingVenue,
           sortedRegions: sortedRegions,
-          onSave: editingVenue ? (updates) => updateVenue(editingVenue.id, updates) : addVenue,
+          onSave: editingVenue && editingVenue.id ? (updates) => updateVenue(editingVenue.id, updates) : addVenue,
           onCancel: () => {
             setShowVenueForm(false);
             setEditingVenue(null);
