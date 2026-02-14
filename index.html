@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -8,11 +9,17 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Firebase SDK -->
+
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-  
+
+  <!-- Tesseract.js for OCR -->
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
   <style>
     body {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -21,6 +28,7 @@
       padding: 0;
     }
   </style>
+
 </head>
 <body>
   <div id="root"></div>
@@ -292,6 +300,7 @@
       const [showAvails, setShowAvails] = React.useState(false);
       const [savedAvailableDates, setSavedAvailableDates] = React.useState('');
       const [showMap, setShowMap] = React.useState(false);
+      const [showPhotoUpload, setShowPhotoUpload] = React.useState(false);
 
       React.useEffect(() => {
         loadData();
@@ -625,6 +634,23 @@
         });
       }
 
+      if (showPhotoUpload) {
+        return React.createElement(PhotoUpload, {
+          onVenueParsed: (venueData) => {
+            setShowPhotoUpload(false);
+            setEditingVenue({
+              ...venueData,
+              status: 'Not Contacted',
+              playedBefore: false,
+              emailHistory: [],
+              region: getRegionForCity(venueData.city)
+            });
+            setShowVenueForm(true);
+          },
+          onCancel: () => setShowPhotoUpload(false)
+        });
+      }
+
       if (showMap) {
         return React.createElement(VenueMap, {
           venues: venues,
@@ -797,6 +823,11 @@
               className: 'p-3 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 transition-colors',
               title: 'View Venue Map'
             }, '🗺️'),
+            React.createElement('button', {
+              onClick: () => setShowPhotoUpload(true),
+              className: 'p-3 bg-orange-100 text-orange-700 rounded-xl hover:bg-orange-200 transition-colors',
+              title: 'Add Venue from Photo'
+            }, '📸'),
             React.createElement('button', {
               onClick: downloadCSV,
               className: 'p-3 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 transition-colors',
@@ -2387,6 +2418,231 @@ Facebook: https://www.facebook.com/calicrix/`;
     }
 
     // ============================================
+    // PHOTO UPLOAD OCR COMPONENT
+    // ============================================
+    function PhotoUpload({ onVenueParsed, onCancel }) {
+      const [uploading, setUploading] = React.useState(false);
+      const [processing, setProcessing] = React.useState(false);
+      const [progress, setProgress] = React.useState(0);
+      const [extractedText, setExtractedText] = React.useState('');
+      const [parsedVenue, setParsedVenue] = React.useState(null);
+      const fileInputRef = React.useRef(null);
+
+      async function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        setUploading(true);
+        setProcessing(true);
+        setProgress(0);
+
+        try {
+          const { data: { text } } = await Tesseract.recognize(
+            file,
+            'eng',
+            {
+              logger: m => {
+                if (m.status === 'recognizing text') {
+                  setProgress(Math.round(m.progress * 100));
+                }
+              }
+            }
+          );
+
+          setExtractedText(text);
+          const venue = parseVenueFromText(text);
+          setParsedVenue(venue);
+          setProcessing(false);
+        } catch (error) {
+          console.error('OCR Error:', error);
+          alert('Error processing image. Please try again.');
+          setProcessing(false);
+          setUploading(false);
+        }
+      }
+
+      function parseVenueFromText(text) {
+        const lines = text.split('\n').filter(line => line.trim());
+        const venue = {
+          name: '',
+          address: '',
+          city: '',
+          state: '',
+          phone: '',
+          website: ''
+        };
+
+        // Try to find venue name (usually first substantial line)
+        for (let i = 0; i < Math.min(3, lines.length); i++) {
+          if (lines[i].trim().length > 3 && !lines[i].match(/^\d/) && !lines[i].match(/^http/i)) {
+            venue.name = lines[i].trim();
+            break;
+          }
+        }
+
+        // Find phone number (various formats)
+        const phoneRegex = /(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/;
+        const phoneMatch = text.match(phoneRegex);
+        if (phoneMatch) {
+          venue.phone = phoneMatch[1];
+        }
+
+        // Find website
+        const websiteRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-z0-9-]+\.(com|net|org|co|us|ca|uk|au)[^\s]*)/i;
+        const websiteMatch = text.match(websiteRegex);
+        if (websiteMatch) {
+          let site = websiteMatch[1];
+          if (!site.startsWith('http')) {
+            site = 'https://' + site;
+          }
+          venue.website = site;
+        }
+
+        // Find address (look for street number + street name, city, state zip)
+        const addressRegex = /(\d+\s+[A-Za-z0-9\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Place|Pl)[^,\n]*),?\s*([A-Za-z\s]+),?\s*([A-Z]{2})\s*(\d{5})/i;
+        const addressMatch = text.match(addressRegex);
+        if (addressMatch) {
+          venue.address = addressMatch[1].trim() + ', ' + addressMatch[2].trim() + ', ' + addressMatch[3] + ' ' + addressMatch[4];
+          venue.city = addressMatch[2].trim();
+          venue.state = addressMatch[3];
+        } else {
+          // Try simpler city, state pattern
+          const cityStateRegex = /([A-Za-z\s]+),?\s*([A-Z]{2})\s*(\d{5})?/;
+          const cityStateMatch = text.match(cityStateRegex);
+          if (cityStateMatch) {
+            venue.city = cityStateMatch[1].trim();
+            venue.state = cityStateMatch[2];
+          }
+        }
+
+        return venue;
+      }
+
+      function handleAddVenue() {
+        if (parsedVenue) {
+          onVenueParsed(parsedVenue);
+        }
+      }
+
+      return React.createElement('div', {
+        className: 'min-h-screen p-4'
+      },
+        React.createElement('div', {
+          className: 'bg-white rounded-2xl shadow-xl p-6 max-w-2xl mx-auto'
+        },
+          React.createElement('div', {
+            className: 'flex items-center justify-between mb-6'
+          },
+            React.createElement('h2', {
+              className: 'text-2xl font-bold text-gray-900'
+            }, '📸 Add Venue from Photo'),
+            React.createElement('button', {
+              onClick: onCancel,
+              className: 'text-gray-500 hover:text-gray-700'
+            }, React.createElement(Icon, { name: 'X', size: 24 }))
+          ),
+
+          React.createElement('div', {
+            className: 'space-y-4'
+          },
+            React.createElement('p', {
+              className: 'text-gray-600'
+            }, 'Take a photo or upload a screenshot of venue info (like from Google Maps) and we\'ll automatically extract the details!'),
+
+            React.createElement('input', {
+              ref: fileInputRef,
+              type: 'file',
+              accept: 'image/*',
+              onChange: handleFileUpload,
+              className: 'hidden'
+            }),
+
+            !uploading && React.createElement('button', {
+              onClick: () => fileInputRef.current.click(),
+              className: 'w-full py-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl font-bold text-lg hover:from-orange-600 hover:to-pink-600 transition-colors'
+            }, '📸 Choose Photo'),
+
+            processing && React.createElement('div', {
+              className: 'space-y-2'
+            },
+              React.createElement('p', {
+                className: 'text-center text-gray-700 font-medium'
+              }, 'Processing image... ' + progress + '%'),
+              React.createElement('div', {
+                className: 'w-full bg-gray-200 rounded-full h-3'
+              },
+                React.createElement('div', {
+                  className: 'bg-gradient-to-r from-orange-500 to-pink-500 h-3 rounded-full transition-all',
+                  style: { width: progress + '%' }
+                })
+              )
+            ),
+
+            parsedVenue && React.createElement('div', {
+              className: 'space-y-4'
+            },
+              React.createElement('div', {
+                className: 'bg-green-50 border-2 border-green-200 rounded-xl p-4'
+              },
+                React.createElement('h3', {
+                  className: 'font-bold text-green-800 mb-3'
+                }, '✓ Venue Detected!'),
+                React.createElement('div', {
+                  className: 'space-y-2 text-sm'
+                },
+                  parsedVenue.name && React.createElement('p', null,
+                    React.createElement('span', { className: 'font-semibold' }, 'Name: '),
+                    parsedVenue.name
+                  ),
+                  parsedVenue.address && React.createElement('p', null,
+                    React.createElement('span', { className: 'font-semibold' }, 'Address: '),
+                    parsedVenue.address
+                  ),
+                  parsedVenue.city && React.createElement('p', null,
+                    React.createElement('span', { className: 'font-semibold' }, 'City: '),
+                    parsedVenue.city + (parsedVenue.state ? ', ' + parsedVenue.state : '')
+                  ),
+                  parsedVenue.phone && React.createElement('p', null,
+                    React.createElement('span', { className: 'font-semibold' }, 'Phone: '),
+                    parsedVenue.phone
+                  ),
+                  parsedVenue.website && React.createElement('p', null,
+                    React.createElement('span', { className: 'font-semibold' }, 'Website: '),
+                    parsedVenue.website
+                  )
+                )
+              ),
+
+              React.createElement('div', {
+                className: 'bg-blue-50 border-2 border-blue-200 rounded-xl p-4'
+              },
+                React.createElement('p', {
+                  className: 'text-sm text-blue-800 font-medium mb-2'
+                }, 'Raw text extracted:'),
+                React.createElement('pre', {
+                  className: 'text-xs text-gray-700 whitespace-pre-wrap max-h-32 overflow-y-auto'
+                }, extractedText)
+              ),
+
+              React.createElement('div', {
+                className: 'flex gap-3'
+              },
+                React.createElement('button', {
+                  onClick: onCancel,
+                  className: 'flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-300'
+                }, 'Cancel'),
+                React.createElement('button', {
+                  onClick: handleAddVenue,
+                  className: 'flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold hover:from-green-600 hover:to-emerald-600'
+                }, 'Add Venue')
+              )
+            )
+          )
+        )
+      );
+    }
+
+    // ============================================
     // BULK IMPORT COMPONENT
     // ============================================
     function BulkImport({ onImport, onCancel }) {
@@ -2513,5 +2769,6 @@ Facebook: https://www.facebook.com/calicrix/`;
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(React.createElement(App));
   </script>
+
 </body>
 </html>
