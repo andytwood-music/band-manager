@@ -2550,11 +2550,14 @@ Facebook: https://www.facebook.com/calicrix/`;
           }
         }
 
-        // Clean up venue name - remove extra spaces, fix capitalization issues
+        // Clean up venue name - remove extra spaces, fix capitalization issues, remove OCR garbage
         if (venue.name) {
           venue.name = venue.name
             .replace(/\s+/g, ' ')
             .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space before capital letters
+            .replace(/\s+(th|st|nd|rd)\s+[A-Z]\s*[|].*$/i, '') // Remove "th X |" type garbage from icons
+            .replace(/\s+[|].*$/, '') // Remove anything after pipe character
+            .replace(/\s+[XxØø]\s*$/, '') // Remove trailing X (close button)
             .trim();
         }
 
