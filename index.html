@@ -1158,9 +1158,39 @@
         alert(`Geocoding complete!\n\nSuccess: ${successCount}\nFailed: ${failCount}\n\nReload the map to see updates.`);
       }
 
+      async function retryFailedGeocoding() {
+        if (!db) return;
+        
+        const failedVenues = venues.filter(v => v.geocodeFailed);
+        
+        if (failedVenues.length === 0) {
+          alert('No failed venues to retry!');
+          return;
+        }
+        
+        if (!confirm(`Retry geocoding for ${failedVenues.length} failed venues?`)) {
+          return;
+        }
+        
+        // Clear the geocodeFailed flag on all failed venues
+        for (const venue of failedVenues) {
+          try {
+            await db.collection('venues').doc(venue.id).update({
+              geocodeFailed: false,
+              geocodeFailReason: null
+            });
+          } catch (error) {
+            console.error(`Error clearing failed flag for ${venue.name}:`, error);
+          }
+        }
+        
+        alert(`Cleared failed status for ${failedVenues.length} venues. Click "Geocode Missing Venues" to try again.`);
+      }
+
       const venuesWithCoords = venues.filter(v => v.latitude && v.longitude).length;
       const venuesWithAddresses = venues.filter(v => v.address).length;
       const needsGeocoding = venues.filter(v => v.address && !v.latitude && !v.geocodeFailed).length;
+      const failedGeocoding = venues.filter(v => v.geocodeFailed).length;
 
       return React.createElement('div', {
         className: 'fixed inset-0 bg-gray-900 z-50 flex flex-col'
@@ -1234,7 +1264,13 @@
                 className: 'text-sm text-gray-700'
               }, status)
             )
-          ))
+          )),
+          
+          // Retry Failed Geocoding button (only show if there are failed venues)
+          failedGeocoding > 0 && React.createElement('button', {
+            onClick: retryFailedGeocoding,
+            className: 'ml-4 px-3 py-1 bg-orange-500 text-white text-sm font-medium rounded-full hover:bg-orange-600 transition-colors'
+          }, `Retry ${failedGeocoding} failed`)
         )
       );
     }
@@ -1561,7 +1597,7 @@
         },
           React.createElement('h2', {
             className: 'text-2xl font-bold text-gray-900 mb-6'
-          }, venue ? 'Edit Venue' : 'Add New Venue'),
+          }, (venue && venue.id) ? 'Edit Venue' : 'Add New Venue'),
 
           React.createElement('div', {
             className: 'space-y-4'
@@ -1865,7 +1901,7 @@
               React.createElement('button', {
                 onClick: handleSubmit,
                 className: 'flex-1 bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 rounded-xl font-bold text-xl'
-              }, venue ? 'Update Venue' : 'Add Venue')
+              }, (venue && venue.id) ? 'Update Venue' : 'Add Venue')
             )
           )
         )
