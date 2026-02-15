@@ -1161,7 +1161,24 @@
         }
 
         setGeocoding(false);
-        alert(`Geocoding complete!\n\nSuccess: ${successCount}\nFailed: ${failCount}\n\nReload the map to see updates.`);
+        
+        // Show detailed failure info
+        let message = `Geocoding complete!\n\nSuccess: ${successCount}\nFailed: ${failCount}`;
+        
+        if (failCount > 0) {
+          // Get the first few failed venues to show error details
+          const failedVenues = venues.filter(v => v.geocodeFailed).slice(0, 3);
+          message += '\n\nFirst failed venues:';
+          failedVenues.forEach(v => {
+            message += `\n- ${v.name}: ${v.geocodeFailReason || 'Unknown error'}`;
+          });
+          if (failCount > 3) {
+            message += `\n... and ${failCount - 3} more`;
+          }
+        }
+        
+        message += '\n\nReload the map to see updates.';
+        alert(message);
       }
 
       async function retryFailedGeocoding() {
