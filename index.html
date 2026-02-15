@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://unpkg.com https://cdn.tailwindcss.com https://maps.googleapis.com https://*.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com https://maps.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://maps.googleapis.com https://*.gstatic.com; img-src 'self' data: https://*.googleapis.com https://*.gstatic.com https://maps.gstatic.com https://maps.googleapis.com; frame-src https://maps.googleapis.com;"> -->
   <title>Band Manager</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -297,6 +297,7 @@
       const [filterRegion, setFilterRegion] = React.useState('All');
       const [showCalendar, setShowCalendar] = React.useState(false);
       const [returnToCalendar, setReturnToCalendar] = React.useState(false);
+      const [returnToMap, setReturnToMap] = React.useState(false);
       const [showAvails, setShowAvails] = React.useState(false);
       const [savedAvailableDates, setSavedAvailableDates] = React.useState('');
       const [showMap, setShowMap] = React.useState(false);
@@ -375,6 +376,10 @@
           });
           setShowVenueForm(false);
           setEditingVenue(null);
+          if (returnToMap) {
+            setShowMap(true);
+            setReturnToMap(false);
+          }
         } catch (error) {
           console.error('Error adding venue:', error);
           alert('Error adding venue');
@@ -387,6 +392,10 @@
           await db.collection('venues').doc(id).update(updates);
           setShowVenueForm(false);
           setEditingVenue(null);
+          if (returnToMap) {
+            setShowMap(true);
+            setReturnToMap(false);
+          }
         } catch (error) {
           console.error('Error updating venue:', error);
           alert('Error updating venue');
@@ -609,6 +618,10 @@
           onCancel: () => {
             setShowVenueForm(false);
             setEditingVenue(null);
+            if (returnToMap) {
+              setShowMap(true);
+              setReturnToMap(false);
+            }
           }
         });
       }
@@ -659,6 +672,7 @@
           onSelectVenue: (venue) => {
             setViewingVenue(venue);
             setShowMap(false);
+            setReturnToMap(true);
           }
         });
       }
@@ -757,6 +771,10 @@
               setViewingVenue(null);
               setShowCalendar(true);
               setReturnToCalendar(false);
+            } else if (returnToMap) {
+              setViewingVenue(null);
+              setShowMap(true);
+              setReturnToMap(false);
             } else {
               setViewingVenue(null);
             }
@@ -973,9 +991,11 @@
       const mapRef = React.useRef(null);
       const mapInstanceRef = React.useRef(null);
       const markersRef = React.useRef([]);
+      const hasInitializedBounds = React.useRef(false);
       const [mapLoaded, setMapLoaded] = React.useState(false);
       const [geocoding, setGeocoding] = React.useState(false);
       const [geocodedCount, setGeocodedCount] = React.useState(0);
+      const [filterRegion, setFilterRegion] = React.useState('All');
       const [visibleStatuses, setVisibleStatuses] = React.useState({
         'Not Contacted': true,
         'Waiting': true,
@@ -1038,9 +1058,10 @@
         markersRef.current.forEach(m => m.setMap(null));
         markersRef.current = [];
 
-        // Add markers for venues with coordinates and visible status
+        // Add markers for venues with coordinates and visible status and region
         venues.forEach(venue => {
-          if (venue.latitude && venue.longitude && visibleStatuses[venue.status]) {
+          const matchesRegion = filterRegion === 'All' || venue.region === filterRegion;
+          if (venue.latitude && venue.longitude && visibleStatuses[venue.status] && matchesRegion) {
             const position = { lat: venue.latitude, lng: venue.longitude };
             
             const marker = new google.maps.Marker({
@@ -1083,9 +1104,10 @@
           }
         });
 
-        // Fit map to show all markers
-        if (markerCount > 0) {
+        // Fit map to show all markers (only on first load, then preserve user's zoom/pan)
+        if (markerCount > 0 && !hasInitializedBounds.current) {
           map.fitBounds(bounds);
+          hasInitializedBounds.current = true;
         }
 
         // Global function for info window button
@@ -1094,7 +1116,7 @@
           if (venue) onSelectVenue(venue);
         };
 
-      }, [mapLoaded, venues, visibleStatuses]);
+      }, [mapLoaded, venues, visibleStatuses, filterRegion]);
 
       // Geocode venues without coordinates
       async function geocodeVenues() {
@@ -1227,8 +1249,18 @@
             }, `${venuesWithCoords} of ${venuesWithAddresses} venues mapped`)
           ),
           React.createElement('div', {
-            className: 'flex gap-2'
+            className: 'flex gap-2 items-center'
           },
+            React.createElement('select', {
+              value: filterRegion,
+              onChange: (e) => setFilterRegion(e.target.value),
+              className: 'px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-500'
+            },
+              React.createElement('option', { value: 'All' }, 'All Regions'),
+              REGIONS_ORDER.map(region =>
+                React.createElement('option', { key: region, value: region }, region)
+              )
+            ),
             needsGeocoding > 0 && React.createElement('button', {
               onClick: geocodeVenues,
               disabled: geocoding,
@@ -2225,10 +2257,6 @@
           React.createElement('div', {
             className: 'flex gap-3'
           },
-            React.createElement('button', {
-              onClick: onClose,
-              className: 'flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-bold'
-            }, 'Close'),
             React.createElement('button', {
               onClick: onEdit,
               className: 'flex-1 bg-blue-500 text-white py-3 rounded-xl font-bold'
