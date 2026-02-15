@@ -1120,10 +1120,16 @@
         for (let i = 0; i < venuesToGeocode.length; i++) {
           const venue = venuesToGeocode[i];
           console.log(`Geocoding ${i + 1}/${venuesToGeocode.length}: ${venue.name}`);
-          console.log(`Address: ${venue.address}, ${venue.city}, ${venue.state}`);
+          console.log(`Address: ${venue.address}`);
           
           try {
-            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.address + ', ' + venue.city + ', ' + venue.state)}&key=${GOOGLE_MAPS_API_KEY}`;
+            // If address already contains city/state/zip, just use it. Otherwise append city/state.
+            let fullAddress = venue.address;
+            if (!fullAddress.includes(venue.state)) {
+              fullAddress = `${venue.address}, ${venue.city}, ${venue.state}`;
+            }
+            
+            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${GOOGLE_MAPS_API_KEY}`;
             const response = await fetch(url);
             const data = await response.json();
             
