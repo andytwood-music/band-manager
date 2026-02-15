@@ -27,6 +27,11 @@
       margin: 0;
       padding: 0;
     }
+    
+    /* Prevent browser zoom on map to avoid conflicts with Google Maps pinch-to-zoom */
+    .map-container {
+      touch-action: pan-x pan-y;
+    }
   </style>
 
 </head>
@@ -1276,7 +1281,7 @@
         // Map
         React.createElement('div', {
           ref: mapRef,
-          className: 'flex-1'
+          className: 'flex-1 map-container'
         }),
 
         // Legend with status filters
@@ -1963,6 +1968,46 @@
     // VENUE VIEW COMPONENT
     // ============================================
     function VenueView({ venue, onClose, onEdit, onEmail }) {
+      async function changeStatus(newStatus) {
+        if (!db) return;
+        
+        // If changing from Booked to Played, prompt for pay and merch
+        if (venue.status === 'Booked' && newStatus === 'Played') {
+          const pay = prompt('How much did they pay? (just the number, e.g. 500)');
+          const merch = prompt('Merch sales? (just the number, e.g. 180)');
+          
+          const updates = { 
+            status: newStatus,
+            mostRecentlyPlayed: venue.confirmedBookingDate || new Date().toISOString().split('T')[0]
+          };
+          
+          if (pay && !isNaN(pay)) {
+            updates.lastPay = parseInt(pay);
+            updates.lastPayDate = venue.confirmedBookingDate || new Date().toISOString().split('T')[0];
+          }
+          
+          if (merch && !isNaN(merch)) {
+            updates.merchSales = parseInt(merch);
+            updates.merchSalesDate = venue.confirmedBookingDate || new Date().toISOString().split('T')[0];
+          }
+          
+          try {
+            await db.collection('venues').doc(venue.id).update(updates);
+          } catch (error) {
+            console.error('Error updating status:', error);
+            alert('Error updating status');
+          }
+        } else {
+          // Normal status change
+          try {
+            await db.collection('venues').doc(venue.id).update({ status: newStatus });
+          } catch (error) {
+            console.error('Error updating status:', error);
+            alert('Error updating status');
+          }
+        }
+      }
+
       return React.createElement('div', {
         className: 'min-h-screen p-4'
       },
@@ -1982,22 +2027,26 @@
             }, React.createElement(Icon, { name: 'X', size: 24 }))
           ),
 
-          // Status
+          // Status Buttons
           React.createElement('div', {
             className: 'mb-6'
           },
-            React.createElement('span', {
-              className: `inline-block px-4 py-2 rounded-full text-sm font-semibold ${
-                venue.status === 'Not Contacted' ? 'bg-gray-200 text-gray-700' :
-                venue.status === 'Waiting' ? 'bg-yellow-200 text-yellow-800' :
-                venue.status === 'Priority' ? 'bg-orange-200 text-orange-800' :
-                venue.status === 'Booked' ? 'bg-green-200 text-green-800' :
-                venue.status === 'Played' ? 'bg-blue-200 text-blue-800' :
-                venue.status === 'Passed' ? 'bg-red-200 text-red-800' :
-                venue.status === 'Closed' ? 'bg-gray-300 text-gray-600' :
-                'bg-gray-200 text-gray-700'
-              }`
-            }, venue.status)
+            React.createElement('p', {
+              className: 'text-sm font-semibold text-gray-600 mb-2'
+            }, 'Status:'),
+            React.createElement('div', {
+              className: 'flex flex-wrap gap-2'
+            }, ['Not Contacted', 'Waiting', 'Priority', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
+              React.createElement('button', {
+                key: status,
+                onClick: () => changeStatus(status),
+                className: `px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  venue.status === status
+                    ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`
+              }, status)
+            ))
           ),
 
           // Confirmed Booking
