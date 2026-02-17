@@ -244,7 +244,6 @@
     const CATEGORY_OPTIONS = [
       '',
       'Bar',
-      'Irish Pub',
       'Festival',
       'Restaurant',
       'Winery',
@@ -316,6 +315,9 @@
       const [savedAvailableDates, setSavedAvailableDates] = React.useState('');
       const [showMap, setShowMap] = React.useState(false);
       const [showPhotoUpload, setShowPhotoUpload] = React.useState(false);
+      const [mapCenter, setMapCenter] = React.useState(null);
+      const [mapZoom, setMapZoom] = React.useState(null);
+      const [mapRegionFilter, setMapRegionFilter] = React.useState('All');
 
       React.useEffect(() => {
         loadData();
@@ -683,11 +685,19 @@
       if (showMap) {
         return React.createElement(VenueMap, {
           venues: venues,
+          initialCenter: mapCenter,
+          initialZoom: mapZoom,
+          initialRegionFilter: mapRegionFilter,
           onClose: () => setShowMap(false),
           onSelectVenue: (venue) => {
             setViewingVenue(venue);
             setShowMap(false);
             setReturnToMap(true);
+          },
+          onMapStateChange: (center, zoom, regionFilter) => {
+            setMapCenter(center);
+            setMapZoom(zoom);
+            setMapRegionFilter(regionFilter);
           }
         });
       }
@@ -872,9 +882,8 @@
 
         // Search & Filter
         React.createElement('div', {
-          className: 'bg-white rounded-2xl shadow-xl p-4 mb-4 max-w-2xl mx-auto'
+          className: 'bg-white rounded-2xl shadow-xl p-4 mb-4'
         },
-
           // Search box
           React.createElement('div', {
             className: 'relative mb-3'
@@ -1016,7 +1025,7 @@
     // ============================================
     // VENUE MAP COMPONENT
     // ============================================
-    function VenueMap({ venues, onClose, onSelectVenue }) {
+    function VenueMap({ venues, onClose, onSelectVenue, initialCenter, initialZoom, initialRegionFilter, onMapStateChange }) {
       const mapRef = React.useRef(null);
       const mapInstanceRef = React.useRef(null);
       const markersRef = React.useRef([]);
@@ -1024,7 +1033,7 @@
       const [mapLoaded, setMapLoaded] = React.useState(false);
       const [geocoding, setGeocoding] = React.useState(false);
       const [geocodedCount, setGeocodedCount] = React.useState(0);
-      const [filterRegion, setFilterRegion] = React.useState('All');
+      const [filterRegion, setFilterRegion] = React.useState(initialRegionFilter || 'All');
       const [visibleStatuses, setVisibleStatuses] = React.useState({
         'Not Contacted': true,
         'Waiting': true,
@@ -1073,10 +1082,30 @@
         // Create map only once
         if (!mapInstanceRef.current) {
           mapInstanceRef.current = new google.maps.Map(mapRef.current, {
-            center: { lat: 33.8, lng: -116.5 }, // Centered on Palm Springs area
-            zoom: 8,
+            center: initialCenter || { lat: 33.8, lng: -116.5 },
+            zoom: initialZoom || 8,
             styles: []
           });
+          
+          // If we have initial position, mark as initialized to prevent auto-zoom
+          if (initialCenter && initialZoom) {
+            hasInitializedBounds.current = true;
+          }
+          
+          // Save map state when user pans or zooms
+          if (onMapStateChange) {
+            mapInstanceRef.current.addListener('idle', () => {
+              const center = mapInstanceRef.current.getCenter();
+              const zoom = mapInstanceRef.current.getZoom();
+              if (center) {
+                onMapStateChange(
+                  { lat: center.lat(), lng: center.lng() },
+                  zoom,
+                  filterRegion
+                );
+              }
+            });
+          }
         }
 
         const map = mapInstanceRef.current;
@@ -1151,6 +1180,21 @@
         };
 
       }, [mapLoaded, venues, visibleStatuses, filterRegion]);
+
+      // Save map state (center, zoom, region filter) whenever they change
+      React.useEffect(() => {
+        if (mapInstanceRef.current && onMapStateChange) {
+          const center = mapInstanceRef.current.getCenter();
+          const zoom = mapInstanceRef.current.getZoom();
+          if (center) {
+            onMapStateChange(
+              { lat: center.lat(), lng: center.lng() },
+              zoom,
+              filterRegion
+            );
+          }
+        }
+      }, [filterRegion]);
 
       // Geocode venues without coordinates
       async function geocodeVenues() {
