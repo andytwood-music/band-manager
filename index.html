@@ -873,44 +873,59 @@
         React.createElement('div', {
           className: 'bg-white rounded-2xl shadow-xl p-4 mb-4'
         },
+          // Search box
           React.createElement('div', {
-            className: 'flex gap-2 mb-3'
+            className: 'relative mb-3'
           },
-            React.createElement('div', {
-              className: 'flex-1 relative'
-            },
-              React.createElement('span', {
-                className: 'absolute left-3 top-1/2 -translate-y-1/2 text-gray-400'
-              }, React.createElement(Icon, { name: 'Search', size: 20 })),
-              React.createElement('input', {
-                type: 'text',
-                placeholder: 'Search venues or cities...',
-                value: searchTerm,
-                onChange: (e) => setSearchTerm(e.target.value),
-                className: 'w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
-              })
-            ),
-            React.createElement('select', {
-              value: filterRegion,
-              onChange: (e) => setFilterRegion(e.target.value),
-              className: 'px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-medium focus:outline-none focus:border-purple-500 bg-white'
-            },
-              React.createElement('option', { value: 'All' }, 'All Regions'),
-              sortedRegions.map(region =>
-                React.createElement('option', { key: region, value: region }, region)
-              )
-            ),
-            React.createElement('select', {
-              value: filterCategory,
-              onChange: (e) => setFilterCategory(e.target.value),
-              className: 'px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-medium focus:outline-none focus:border-purple-500 bg-white'
-            },
-              React.createElement('option', { value: 'All' }, 'All Categories'),
-              CATEGORY_OPTIONS.filter(c => c !== '').map(category =>
-                React.createElement('option', { key: category, value: category }, category)
-              )
+            React.createElement('span', {
+              className: 'absolute left-3 top-1/2 -translate-y-1/2 text-gray-400'
+            }, React.createElement(Icon, { name: 'Search', size: 20 })),
+            React.createElement('input', {
+              type: 'text',
+              placeholder: 'Search venues or cities...',
+              value: searchTerm,
+              onChange: (e) => setSearchTerm(e.target.value),
+              className: 'w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500'
+            })
+          ),
+          
+          // Status dropdown
+          React.createElement('select', {
+            value: filterStatus,
+            onChange: (e) => setFilterStatus(e.target.value),
+            className: 'w-full mb-3 px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-medium focus:outline-none focus:border-purple-500 bg-white'
+          },
+            React.createElement('option', { value: 'All' }, 'All Statuses'),
+            ['Not Contacted', 'Waiting', 'Priority', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
+              React.createElement('option', { key: status, value: status }, status)
             )
           ),
+          
+          // Region dropdown
+          React.createElement('select', {
+            value: filterRegion,
+            onChange: (e) => setFilterRegion(e.target.value),
+            className: 'w-full mb-3 px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-medium focus:outline-none focus:border-purple-500 bg-white'
+          },
+            React.createElement('option', { value: 'All' }, 'All Regions'),
+            sortedRegions.map(region =>
+              React.createElement('option', { key: region, value: region }, region)
+            )
+          ),
+          
+          // Category dropdown
+          React.createElement('select', {
+            value: filterCategory,
+            onChange: (e) => setFilterCategory(e.target.value),
+            className: 'w-full mb-3 px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-medium focus:outline-none focus:border-purple-500 bg-white'
+          },
+            React.createElement('option', { value: 'All' }, 'All Categories'),
+            CATEGORY_OPTIONS.filter(c => c !== '').map(category =>
+              React.createElement('option', { key: category, value: category }, category)
+            )
+          ),
+          
+          // Clear filters button
           React.createElement('button', {
             onClick: () => {
               setSearchTerm('');
@@ -920,19 +935,6 @@
             },
             className: 'w-full mb-3 px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition-colors'
           }, 'Clear All Filters'),
-          React.createElement('div', {
-            className: 'flex gap-2 overflow-x-auto pb-2'
-          }, ['All', 'Not Contacted', 'Waiting', 'Priority', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
-            React.createElement('button', {
-              key: status,
-              onClick: () => setFilterStatus(status),
-              className: `px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-colors ${
-                filterStatus === status
-                  ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`
-            }, status)
-          ))
         ),
 
         // Action Buttons
