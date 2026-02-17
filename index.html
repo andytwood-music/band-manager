@@ -241,6 +241,18 @@
       'Midwest'
     ];
 
+    const CATEGORY_OPTIONS = [
+      '',
+      'Bar',
+      'Festival',
+      'Restaurant',
+      'Winery',
+      'Music Venue',
+      'Concert Series',
+      'Theater',
+      'Other'
+    ];
+
     function getRegionForCity(city) {
       return REGION_MAP[city] || '';
     }
@@ -295,6 +307,7 @@
       const [searchTerm, setSearchTerm] = React.useState('');
       const [filterStatus, setFilterStatus] = React.useState('All');
       const [filterRegion, setFilterRegion] = React.useState('All');
+      const [filterCategory, setFilterCategory] = React.useState('All');
       const [showCalendar, setShowCalendar] = React.useState(false);
       const [returnToCalendar, setReturnToCalendar] = React.useState(false);
       const [returnToMap, setReturnToMap] = React.useState(false);
@@ -572,7 +585,8 @@
                             v.city.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter = filterStatus === 'All' || v.status === filterStatus;
         const matchesRegion = filterRegion === 'All' || v.region === filterRegion;
-        return matchesSearch && matchesFilter && matchesRegion;
+        const matchesCategory = filterCategory === 'All' || v.category === filterCategory;
+        return matchesSearch && matchesFilter && matchesRegion && matchesCategory;
       }).sort((a, b) => {
         // If Booked filter is active, sort by booking date (soonest first)
         if (filterStatus === 'Booked') {
@@ -885,6 +899,16 @@
               sortedRegions.map(region =>
                 React.createElement('option', { key: region, value: region }, region)
               )
+            ),
+            React.createElement('select', {
+              value: filterCategory,
+              onChange: (e) => setFilterCategory(e.target.value),
+              className: 'px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-medium focus:outline-none focus:border-purple-500 bg-white'
+            },
+              React.createElement('option', { value: 'All' }, 'All Categories'),
+              CATEGORY_OPTIONS.filter(c => c !== '').map(category =>
+                React.createElement('option', { key: category, value: category }, category)
+              )
             )
           ),
           React.createElement('button', {
@@ -892,6 +916,7 @@
               setSearchTerm('');
               setFilterStatus('All');
               setFilterRegion('All');
+              setFilterCategory('All');
             },
             className: 'w-full mb-3 px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition-colors'
           }, 'Clear All Filters'),
@@ -1461,7 +1486,10 @@
             }, venue.city + (venue.state ? ', ' + venue.state : '')),
             venue.region && React.createElement('p', {
               className: 'text-sm text-purple-600 font-medium mt-1'
-            }, venue.region)
+            }, venue.region),
+            venue.category && React.createElement('p', {
+              className: 'text-sm text-blue-600 font-medium mt-1'
+            }, '🏷️ ' + venue.category)
           ),
           React.createElement('span', {
             className: `px-3 py-1 rounded-full text-sm font-semibold ${statusColors[venue.status]}`
@@ -1816,13 +1844,15 @@
               React.createElement('label', {
                 className: 'block text-lg font-semibold text-gray-700 mb-2'
               }, 'Category'),
-              React.createElement('input', {
-                type: 'text',
-                value: formData.category,
+              React.createElement('select', {
+                value: formData.category || '',
                 onChange: (e) => setFormData({...formData, category: e.target.value}),
-                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
-                placeholder: 'e.g., Yahoo Venue List'
-              })
+                className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500 bg-white'
+              },
+                CATEGORY_OPTIONS.map(category =>
+                  React.createElement('option', { key: category, value: category }, category || '-- None --')
+                )
+              )
             ),
 
             // Region
