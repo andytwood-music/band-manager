@@ -452,29 +452,47 @@
       }
 
       function downloadCSV() {
-        const headers = [
-          'Venue Name', 'City', 'State', 'Played Before?', 'Phone Number',
-          'Email Address', 'Category', 'Notes / Last Called', 'Most Recent Booking',
-          'Address', 'Website/Social'
-        ];
+        // Export all fields in logical order
+        const data = venues.map(v => ({
+          'Name': v.name || '',
+          'City': v.city || '',
+          'State': v.state || '',
+          'Phone': v.phone || '',
+          'Email': v.email || '',
+          'Website': v.website || '',
+          'Address': v.address || '',
+          'Region': v.region || '',
+          'Category': v.category || '',
+          'Status': v.status || '',
+          'Played Before': v.playedBefore ? 'Yes' : 'No',
+          'Most Recent Booking': v.mostRecentlyPlayed || '',
+          'Confirmed Booking Date': v.confirmedBookingDate || '',
+          'Showtime': v.showtime || '',
+          'Typical Pay': v.typicalPay || '',
+          'Last Pay': v.lastPay || '',
+          'Last Pay Date': v.lastPayDate || '',
+          'Merch Sales': v.merchSales || '',
+          'Merch Sales Date': v.merchSalesDate || '',
+          'Notes': v.notes || '',
+          'Latitude': v.latitude || '',
+          'Longitude': v.longitude || ''
+        }));
 
-        const rows = venues.map(v => [
-          v.name || '', v.city || '', v.state || '',
-          v.playedBefore ? 'Yes' : '', v.phone || '', v.email || '',
-          v.category || '', v.notes || '', v.mostRecentlyPlayed || '',
-          v.address || '', v.website || ''
-        ]);
+        // Use PapaParse to handle quotes, line breaks, etc.
+        const csv = Papa.unparse(data, {
+          delimiter: '\t',
+          header: true,
+          quotes: true,
+          quoteChar: '"',
+          escapeChar: '"',
+          newline: '\n'
+        });
 
-        const csvContent = [
-          headers.join('\t'),
-          ...rows.map(row => row.join('\t'))
-        ].join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([csv], { type: 'text/tab-separated-values;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
-        link.setAttribute('download', `venues_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute('download', `venues_${new Date().toISOString().split('T')[0]}.tsv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
@@ -2423,7 +2441,7 @@
 
 Hello,
 
-The Warsaw Poland Bros, led by The Mod Professor Crix Poland, are a ska/reggae band who've played over 5,000 shows from coast to coast, shared stages with No Doubt, The Offspring, The Knack, The Specials, and The Skatalites, and toured with Pennywise, Slightly Stoopid, English Beat, and Pepper. The band has the following dates available:
+The Warsaw Poland Bros, led by The Mod Professor Crix Poland, are a ska/reggae band who've played over 7,000 shows from coast to coast, shared stages with No Doubt, The Offspring, The Knack, The Specials, and The Skatalites, and toured with Pennywise, Slightly Stoopid, English Beat, and Pepper. The band has the following dates available:
 
 ${dates}
 
@@ -2954,34 +2972,75 @@ Facebook: https://www.facebook.com/calicrix/`;
       const [preview, setPreview] = React.useState([]);
 
       function parseData() {
-        const lines = pastedData.trim().split('\n');
-        const venues = [];
-        
-        lines.forEach((line, idx) => {
-          if (idx === 0) return; // Skip header
-          const parts = line.split('\t');
-          if (parts.length >= 2 && parts[0] && parts[1]) {
-            const city = parts[1] || '';
-            const region = getRegionForCity(city);
-            venues.push({
-              name: parts[0] || '',
-              city: city,
-              state: parts[2] || '',
-              playedBefore: parts[3]?.toLowerCase() === 'yes' || parts[3]?.toLowerCase() === 'true',
-              phone: parts[4] || '',
-              email: parts[5] || '',
-              category: parts[6] || '',
-              notes: parts[7] || '',
-              mostRecentlyPlayed: parts[8] || null,
-              address: parts[9] || '',
-              website: parts[10] || '',
-              status: parts[11] || 'Not Contacted',
-              region: region,
-              lastContacted: null,
-              emailHistory: []
-            });
-          }
+        if (!pastedData.trim()) {
+          alert('Please paste some data first');
+          return;
+        }
+
+        // Parse with PapaParse (handles quotes, line breaks, etc.)
+        const result = Papa.parse(pastedData, {
+          delimiter: '\t',
+          header: true,
+          skipEmptyLines: true,
+          quoteChar: '"',
+          escapeChar: '"'
         });
+
+        if (result.errors.length > 0) {
+          console.error('Parse errors:', result.errors);
+          alert('Error parsing data. Check console for details.');
+          return;
+        }
+
+        // Validate headers
+        const expectedHeaders = [
+          'Name', 'City', 'State', 'Phone', 'Email', 'Website', 'Address',
+          'Region', 'Category', 'Status', 'Played Before', 'Most Recent Booking',
+          'Confirmed Booking Date', 'Showtime', 'Typical Pay', 'Last Pay',
+          'Last Pay Date', 'Merch Sales', 'Merch Sales Date', 'Notes',
+          'Latitude', 'Longitude'
+        ];
+
+        const actualHeaders = Object.keys(result.data[0] || {});
+        const missingHeaders = expectedHeaders.filter(h => !actualHeaders.includes(h));
+        
+        if (missingHeaders.length > 0) {
+          alert(`ERROR: Missing required headers:\n${missingHeaders.join(', ')}\n\nExpected headers:\n${expectedHeaders.join(', ')}\n\nMake sure you're using the latest export format!`);
+          return;
+        }
+
+        // Convert parsed data to venue objects
+        const venues = result.data.map(row => {
+          const city = row.City || '';
+          const region = row.Region || getRegionForCity(city);
+          
+          return {
+            name: row.Name || '',
+            city: city,
+            state: row.State || '',
+            phone: row.Phone || '',
+            email: row.Email || '',
+            website: row.Website || '',
+            address: row.Address || '',
+            region: region,
+            category: row.Category || '',
+            status: row.Status || 'Not Contacted',
+            playedBefore: row['Played Before']?.toLowerCase() === 'yes',
+            mostRecentlyPlayed: row['Most Recent Booking'] || null,
+            confirmedBookingDate: row['Confirmed Booking Date'] || null,
+            showtime: row.Showtime || '',
+            typicalPay: row['Typical Pay'] || '',
+            lastPay: row['Last Pay'] ? parseInt(row['Last Pay']) : null,
+            lastPayDate: row['Last Pay Date'] || null,
+            merchSales: row['Merch Sales'] ? parseInt(row['Merch Sales']) : null,
+            merchSalesDate: row['Merch Sales Date'] || null,
+            notes: row.Notes || '',
+            latitude: row.Latitude ? parseFloat(row.Latitude) : null,
+            longitude: row.Longitude ? parseFloat(row.Longitude) : null,
+            lastContacted: null,
+            emailHistory: []
+          };
+        }).filter(v => v.name && v.city); // Only keep rows with name and city
         
         setPreview(venues);
       }
@@ -3009,7 +3068,7 @@ Facebook: https://www.facebook.com/calicrix/`;
           },
             React.createElement('p', {
               className: 'text-gray-600 mb-4'
-            }, 'Paste your tab-separated data from Excel. Expected columns: Venue Name, City, State, Played Before?, Phone, Email, Category, Notes, Most Recent Booking, Address, Website'),
+            }, 'Paste your TSV data from Excel (must include header row). Use the Download button to get the current data format, edit it in Excel, and paste it back here. Headers will be validated automatically.'),
             React.createElement('textarea', {
               value: pastedData,
               onChange: (e) => setPastedData(e.target.value),
