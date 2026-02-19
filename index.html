@@ -322,6 +322,8 @@
       const [mapCenter, setMapCenter] = React.useState(null);
       const [mapZoom, setMapZoom] = React.useState(null);
       const [mapRegionFilter, setMapRegionFilter] = React.useState('All');
+      const [calendarMonth, setCalendarMonth] = React.useState(() => new Date());
+      const [calendarSelectedDate, setCalendarSelectedDate] = React.useState(null);
 
       React.useEffect(() => {
         loadData();
@@ -732,8 +734,11 @@
       }
 
       if (showCalendar) {
-        const [currentMonth, setCurrentMonth] = React.useState(() => new Date());
-        const [selectedDate, setSelectedDate] = React.useState(null);
+        // Use top-level state instead of useState inside conditional
+        const currentMonth = calendarMonth;
+        const setCurrentMonth = setCalendarMonth;
+        const selectedDate = calendarSelectedDate;
+        const setSelectedDate = setCalendarSelectedDate;
         
         // Flatten all bookings from all venues (handle both old and new formats)
         const allBookings = [];
