@@ -469,8 +469,7 @@
           'Status': v.status || '',
           'Played Before': v.playedBefore ? 'Yes' : 'No',
           'Most Recent Booking': v.mostRecentlyPlayed || '',
-          'Confirmed Booking Date': v.confirmedBookingDate || '',
-          'Showtime': v.showtime || '',
+          'Future Bookings': v.bookings && v.bookings.length > 0 ? JSON.stringify(v.bookings) : '',
           'Typical Pay': v.typicalPay || '',
           'Last Pay': v.lastPay || '',
           'Last Pay Date': v.lastPayDate || '',
@@ -733,22 +732,30 @@
       }
 
       if (showCalendar) {
-        const calendarVenues = venues
-          .filter(v => {
-            if (!v.confirmedBookingDate) return false;
-            const [year, month, day] = v.confirmedBookingDate.split('-');
-            const bookingDate = new Date(year, month - 1, day);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return bookingDate >= today;
-          })
-          .sort((a, b) => {
-            const [yearA, monthA, dayA] = a.confirmedBookingDate.split('-');
-            const [yearB, monthB, dayB] = b.confirmedBookingDate.split('-');
-            const dateA = new Date(yearA, monthA - 1, dayA);
-            const dateB = new Date(yearB, monthB - 1, dayB);
-            return dateA - dateB;
-          });
+        // Flatten all bookings from all venues
+        const allBookings = [];
+        venues.forEach(venue => {
+          if (venue.bookings && venue.bookings.length > 0) {
+            venue.bookings.forEach(booking => {
+              const bookingDate = new Date(booking.date + 'T00:00:00');
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              if (bookingDate >= today) {
+                allBookings.push({
+                  ...venue,
+                  displayDate: booking.date,
+                  displayShowtime: booking.showtime,
+                  displayNotes: booking.notes
+                });
+              }
+            });
+          }
+        });
+        
+        // Sort by date
+        const calendarVenues = allBookings.sort((a, b) => {
+          return new Date(a.displayDate) - new Date(b.displayDate);
+        });
 
         return React.createElement('div', {
           className: 'min-h-screen p-4 pb-24'
@@ -1570,22 +1577,27 @@
           }, venue.status)
         ),
 
-        venue.confirmedBookingDate && (() => {
-          const [year, month, day] = venue.confirmedBookingDate.split('-');
-          const bookingDate = new Date(year, month - 1, day);
+        (venue.displayDate || venue.confirmedBookingDate) && (() => {
+          const dateToShow = venue.displayDate || venue.confirmedBookingDate;
+          const showtimeToShow = venue.displayShowtime || venue.showtime;
+          
+          const bookingDate = new Date(dateToShow + 'T00:00:00');
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           if (bookingDate >= today) {
             const dateStr = bookingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
             let displayStr = '📅 Booked: ' + dateStr;
             
-            if (venue.showtime) {
-              const [hours, minutes] = venue.showtime.split(':');
-              const hour = parseInt(hours);
-              const ampm = hour >= 12 ? 'PM' : 'AM';
-              const displayHour = hour % 12 || 12;
-              const timezone = getTimezoneForState(venue.state);
-              displayStr += ` @ ${displayHour}:${minutes} ${ampm} ${timezone}`;
+            if (showtimeToShow) {
+              displayStr += ' @ ' + showtimeToShow;
+              if (venue.state) {
+                const timezone = getTimezoneForState(venue.state);
+                displayStr += ' ' + timezone;
+              }
+            }
+            
+            if (venue.displayNotes) {
+              displayStr += ' • ' + venue.displayNotes;
             }
             
             return React.createElement('p', {
@@ -1684,6 +1696,19 @@
         // Keep old fields for backward compatibility during migration
         confirmedBookingDate: ''
       });
+
+      // Migrate old confirmedBookingDate to bookings array on mount
+      React.useEffect(() => {
+        if (venue && venue.confirmedBookingDate && (!venue.bookings || venue.bookings.length === 0)) {
+          // Has old format, migrate it
+          const migratedBookings = [{
+            date: venue.confirmedBookingDate,
+            showtime: venue.showtime || '',
+            notes: ''
+          }];
+          setFormData(prev => ({ ...prev, bookings: migratedBookings }));
+        }
+      }, [venue]);
 
       // Auto-assign region when city changes
       React.useEffect(() => {
@@ -1964,50 +1989,61 @@
               )
             ),
 
-            // Confirmed Booking Date
+            // Future Bookings
             React.createElement('div', null,
               React.createElement('label', {
                 className: 'block text-lg font-semibold text-gray-700 mb-2'
-              }, 'Confirmed Booking Date'),
-              React.createElement('input', {
-                type: 'date',
-                value: formData.confirmedBookingDate || '',
-                onChange: (e) => setFormData({...formData, confirmedBookingDate: e.target.value}),
-                className: 'w-full max-w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500',
-                style: { boxSizing: 'border-box' }
-              }),
-              formData.confirmedBookingDate && React.createElement('p', {
-                className: 'text-sm text-gray-500 mt-1'
-              }, 'Note: Selecting a future date will set status to "Booked"')
-            ),
-
-            // Showtime
-            React.createElement('div', null,
-              React.createElement('label', {
-                className: 'block text-lg font-semibold text-gray-700 mb-2'
-              }, 'Showtime'),
-              React.createElement('select', {
-                value: formData.showtime || '',
-                onChange: (e) => setFormData({...formData, showtime: e.target.value}),
-                className: 'w-full max-w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500 bg-white',
-                style: { boxSizing: 'border-box' }
-              },
-                React.createElement('option', { value: '' }, '-- Select Time --'),
-                // Generate 10 AM to 12 AM (midnight) in 15-min increments
-                Array.from({ length: 56 }, (_, i) => {
-                  const totalMinutes = (10 * 60) + (i * 15); // Start at 10 AM
-                  const hours = Math.floor(totalMinutes / 60) % 24;
-                  const minutes = totalMinutes % 60;
-                  const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                  const displayHour = hours % 12 || 12;
-                  const ampm = hours >= 12 ? 'PM' : 'AM';
-                  const label = `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                  return React.createElement('option', { key: timeStr, value: timeStr }, label);
-                })
-              ),
-              formData.state && React.createElement('p', {
-                className: 'text-sm text-gray-500 mt-1'
-              }, 'Timezone: ' + getTimezoneForState(formData.state))
+              }, 'Future Bookings'),
+              
+              // List existing bookings
+              formData.bookings && formData.bookings.length > 0 && React.createElement('div', {
+                className: 'mb-3 space-y-2'
+              }, formData.bookings.map((booking, idx) =>
+                React.createElement('div', {
+                  key: idx,
+                  className: 'flex items-center gap-2 p-3 bg-gray-50 rounded-lg'
+                },
+                  React.createElement('div', {
+                    className: 'flex-1'
+                  },
+                    React.createElement('div', {
+                      className: 'font-medium'
+                    }, new Date(booking.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })),
+                    booking.showtime && React.createElement('div', {
+                      className: 'text-sm text-gray-600'
+                    }, booking.showtime),
+                    booking.notes && React.createElement('div', {
+                      className: 'text-sm text-gray-500 italic'
+                    }, booking.notes)
+                  ),
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => {
+                      const newBookings = formData.bookings.filter((_, i) => i !== idx);
+                      setFormData({...formData, bookings: newBookings});
+                    },
+                    className: 'px-3 py-1 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200'
+                  }, 'Delete')
+                )
+              )),
+              
+              // Add booking button
+              React.createElement('button', {
+                type: 'button',
+                onClick: () => {
+                  const date = prompt('Booking date (YYYY-MM-DD):');
+                  if (!date) return;
+                  
+                  const showtime = prompt('Showtime (optional, e.g., "8:00 PM"):') || '';
+                  const notes = prompt('Notes (optional):') || '';
+                  
+                  const newBookings = [...(formData.bookings || []), { date, showtime, notes }];
+                  // Sort by date
+                  newBookings.sort((a, b) => new Date(a.date) - new Date(b.date));
+                  setFormData({...formData, bookings: newBookings});
+                },
+                className: 'w-full px-4 py-2 bg-green-500 text-white rounded-xl font-medium hover:bg-green-600'
+              }, '+ Add Booking')
             ),
 
             // Typical Pay
@@ -2157,44 +2193,31 @@
             ))
           ),
 
-          // Confirmed Booking
-          (venue.confirmedBookingDate || venue.showtime) && React.createElement('div', {
+          // Future Bookings
+          (venue.bookings && venue.bookings.length > 0) && React.createElement('div', {
             className: 'bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4'
           },
             React.createElement('h4', {
               className: 'font-semibold text-gray-700 mb-3'
-            }, '📅 Confirmed Booking'),
+            }, '📅 Future Bookings'),
             React.createElement('div', {
-              className: 'space-y-2'
-            },
-              venue.confirmedBookingDate && React.createElement('p', {
-                className: 'text-gray-800 text-lg'
+              className: 'space-y-3'
+            }, venue.bookings.sort((a, b) => new Date(a.date) - new Date(b.date)).map((booking, idx) =>
+              React.createElement('div', {
+                key: idx,
+                className: 'bg-white p-3 rounded-lg'
               },
-                React.createElement('span', {
-                  className: 'font-semibold'
-                }, 'Date: '),
-                (() => {
-                  const [year, month, day] = venue.confirmedBookingDate.split('-');
-                  const date = new Date(year, month - 1, day);
-                  return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                })()
-              ),
-              venue.showtime && React.createElement('p', {
-                className: 'text-gray-800 text-lg'
-              },
-                React.createElement('span', {
-                  className: 'font-semibold'
-                }, 'Showtime: '),
-                (() => {
-                  const [hours, minutes] = venue.showtime.split(':');
-                  const hour = parseInt(hours);
-                  const ampm = hour >= 12 ? 'PM' : 'AM';
-                  const displayHour = hour % 12 || 12;
-                  const timezone = getTimezoneForState(venue.state);
-                  return `${displayHour}:${minutes} ${ampm} ${timezone}`;
-                })()
+                React.createElement('p', {
+                  className: 'text-gray-800 text-lg font-semibold'
+                }, new Date(booking.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })),
+                booking.showtime && React.createElement('p', {
+                  className: 'text-gray-700'
+                }, '🕐 ' + booking.showtime + (venue.state ? ' ' + getTimezoneForState(venue.state) : '')),
+                booking.notes && React.createElement('p', {
+                  className: 'text-gray-600 text-sm italic'
+                }, '📝 ' + booking.notes)
               )
-            )
+            ))
           ),
 
           // Contact Info
@@ -3007,7 +3030,7 @@ Facebook: https://www.facebook.com/calicrix/`;
         const expectedHeaders = [
           'Name', 'City', 'State', 'Phone', 'Email', 'Website', 'Address',
           'Region', 'Category', 'Status', 'Played Before', 'Most Recent Booking',
-          'Confirmed Booking Date', 'Showtime', 'Typical Pay', 'Last Pay',
+          'Future Bookings', 'Typical Pay', 'Last Pay',
           'Last Pay Date', 'Merch Sales', 'Merch Sales Date', 'Notes',
           'Latitude', 'Longitude'
         ];
@@ -3038,8 +3061,7 @@ Facebook: https://www.facebook.com/calicrix/`;
             status: row.Status || 'Not Contacted',
             playedBefore: row['Played Before']?.toLowerCase() === 'yes',
             mostRecentlyPlayed: row['Most Recent Booking'] || null,
-            confirmedBookingDate: row['Confirmed Booking Date'] || null,
-            showtime: row.Showtime || '',
+            bookings: row['Future Bookings'] ? JSON.parse(row['Future Bookings']) : [],
             typicalPay: row['Typical Pay'] || '',
             lastPay: row['Last Pay'] ? parseInt(row['Last Pay']) : null,
             lastPayDate: row['Last Pay Date'] || null,
