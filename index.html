@@ -742,26 +742,40 @@
         
         // Flatten all bookings from all venues (handle both old and new formats)
         const allBookings = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
         venues.forEach(venue => {
+          // Only include venues with status "Booked" or "Tentative"
+          if (venue.status !== 'Booked' && venue.status !== 'Tentative') return;
+          
           // New format: bookings array
           if (venue.bookings && venue.bookings.length > 0) {
             venue.bookings.forEach(booking => {
-              allBookings.push({
-                ...venue,
-                displayDate: booking.date,
-                displayShowtime: booking.showtime,
-                displayNotes: booking.notes
-              });
+              const bookingDate = new Date(booking.date + 'T00:00:00');
+              // Only include future dates
+              if (bookingDate >= today) {
+                allBookings.push({
+                  ...venue,
+                  displayDate: booking.date,
+                  displayShowtime: booking.showtime,
+                  displayNotes: booking.notes
+                });
+              }
             });
           } 
           // Old format: single confirmedBookingDate (for backward compatibility)
           else if (venue.confirmedBookingDate) {
-            allBookings.push({
-              ...venue,
-              displayDate: venue.confirmedBookingDate,
-              displayShowtime: venue.showtime || '',
-              displayNotes: ''
-            });
+            const bookingDate = new Date(venue.confirmedBookingDate + 'T00:00:00');
+            // Only include future dates
+            if (bookingDate >= today) {
+              allBookings.push({
+                ...venue,
+                displayDate: venue.confirmedBookingDate,
+                displayShowtime: venue.showtime || '',
+                displayNotes: ''
+              });
+            }
           }
         });
         
@@ -862,12 +876,17 @@
                 const isSelected = selectedDate === dateStr;
                 const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
                 
+                // Check if any bookings are Booked (green) or all are Tentative (amber)
+                const hasConfirmed = hasBookings && hasBookings.some(b => b.status === 'Booked');
+                const hasTentative = hasBookings && hasBookings.some(b => b.status === 'Tentative');
+                
                 return React.createElement('button', {
                   key: day,
                   onClick: () => setSelectedDate(hasBookings ? dateStr : null),
                   className: `aspect-square p-1 rounded-lg transition-colors overflow-hidden ${
                     isSelected ? 'bg-purple-500 text-white font-bold' :
-                    hasBookings ? 'bg-green-100 text-green-800 hover:bg-green-200' :
+                    hasConfirmed ? 'bg-green-100 text-green-800 hover:bg-green-200' :
+                    hasTentative ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' :
                     isToday ? 'bg-blue-50 text-blue-800' :
                     'text-gray-700 hover:bg-gray-100'
                   }`
@@ -1097,7 +1116,7 @@
             className: 'w-full mb-3 px-4 py-3 border-2 border-gray-200 rounded-xl text-lg font-medium focus:outline-none focus:border-purple-500 bg-white'
           },
             React.createElement('option', { value: 'All' }, 'All Statuses'),
-            ['Not Contacted', 'Waiting', 'Priority', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
+            ['Not Contacted', 'Waiting', 'Priority', 'Tentative', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
               React.createElement('option', { key: status, value: status }, status)
             )
           ),
@@ -1238,6 +1257,7 @@
         'Not Contacted': '#9CA3AF',
         'Waiting': '#EAB308',
         'Priority': '#F97316',
+        'Tentative': '#F59E0B',
         'Booked': '#10B981',
         'Played': '#3B82F6',
         'Passed': '#EF4444',
@@ -1650,8 +1670,9 @@
       const statusColors = {
         'Not Contacted': 'bg-gray-200 text-gray-700',
         'Waiting': 'bg-yellow-200 text-yellow-800',
-        'Booked': 'bg-green-200 text-green-800',
         'Priority': 'bg-orange-200 text-orange-800',
+        'Tentative': 'bg-amber-200 text-amber-800',
+        'Booked': 'bg-green-200 text-green-800',
         'Played': 'bg-blue-200 text-blue-800',
         'Passed': 'bg-red-200 text-red-800',
         'Closed': 'bg-gray-300 text-gray-600'
@@ -1660,8 +1681,9 @@
       const borderColors = {
         'Not Contacted': 'border-l-gray-400',
         'Waiting': 'border-l-yellow-500',
-        'Booked': 'border-l-green-500',
         'Priority': 'border-l-orange-500',
+        'Tentative': 'border-l-amber-500',
+        'Booked': 'border-l-green-500',
         'Played': 'border-l-blue-500',
         'Passed': 'border-l-red-500',
         'Closed': 'border-l-gray-500'
@@ -1801,7 +1823,7 @@
 
         React.createElement('div', {
           className: 'flex flex-wrap gap-2'
-        }, ['Not Contacted', 'Waiting', 'Priority', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
+        }, ['Not Contacted', 'Waiting', 'Priority', 'Tentative', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
           React.createElement('button', {
             key: status,
             onClick: () => changeStatus(status),
@@ -2143,7 +2165,7 @@
                 onChange: (e) => setFormData({...formData, status: e.target.value}),
                 className: 'w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-purple-500 bg-white'
               },
-                ['Not Contacted', 'Waiting', 'Priority', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
+                ['Not Contacted', 'Waiting', 'Priority', 'Tentative', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
                   React.createElement('option', { key: status, value: status }, status)
                 )
               )
@@ -2421,7 +2443,7 @@
             }, 'Status:'),
             React.createElement('div', {
               className: 'flex flex-wrap gap-2'
-            }, ['Not Contacted', 'Waiting', 'Priority', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
+            }, ['Not Contacted', 'Waiting', 'Priority', 'Tentative', 'Booked', 'Played', 'Passed', 'Closed'].map(status =>
               React.createElement('button', {
                 key: status,
                 onClick: () => changeStatus(status),
