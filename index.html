@@ -447,7 +447,7 @@
           await db.collection('venues').doc(venueId).update({
             emailHistory,
             lastContacted: new Date().toISOString(),
-            status: venue.status === 'Not Contacted' ? 'Waiting' : venue.status
+            status: 'Waiting'  // Always change to Waiting when email sent
           });
         } catch (error) {
           console.error('Error logging email:', error);
@@ -834,6 +834,13 @@
           onEmail: () => {
             setEmailVenue(viewingVenue);
             setViewingVenue(null);
+          },
+          onStatusChange: () => {
+            // Refresh the venue from the venues array after status change
+            const updatedVenue = venues.find(v => v.id === viewingVenue.id);
+            if (updatedVenue) {
+              setViewingVenue({...updatedVenue});
+            }
           }
         });
       }
@@ -1673,10 +1680,12 @@
       const [formData, setFormData] = React.useState(venue || {
         name: '', city: '', state: '', phone: '', email: '', address: '', notes: '',
         playedBefore: false, category: '', mostRecentlyPlayed: '', website: '', region: '',
-        status: 'Not Contacted', confirmedBookingDate: '', showtime: '',
+        status: 'Not Contacted', bookings: [], showtime: '',
         typicalPay: '', lastPay: null, lastPayDate: null,
         merchSales: null, merchSalesDate: null,
-        latitude: null, longitude: null
+        latitude: null, longitude: null,
+        // Keep old fields for backward compatibility during migration
+        confirmedBookingDate: ''
       });
 
       // Auto-assign region when city changes
@@ -2067,7 +2076,7 @@
     // ============================================
     // VENUE VIEW COMPONENT
     // ============================================
-    function VenueView({ venue, onClose, onEdit, onEmail }) {
+    function VenueView({ venue, onClose, onEdit, onEmail, onStatusChange }) {
       async function changeStatus(newStatus) {
         if (!db) return;
         
@@ -2093,6 +2102,7 @@
           
           try {
             await db.collection('venues').doc(venue.id).update(updates);
+            if (onStatusChange) onStatusChange();
           } catch (error) {
             console.error('Error updating status:', error);
             alert('Error updating status');
@@ -2101,6 +2111,7 @@
           // Normal status change
           try {
             await db.collection('venues').doc(venue.id).update({ status: newStatus });
+            if (onStatusChange) onStatusChange();
           } catch (error) {
             console.error('Error updating status:', error);
             alert('Error updating status');
