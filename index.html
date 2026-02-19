@@ -732,9 +732,10 @@
       }
 
       if (showCalendar) {
-        // Flatten all bookings from all venues
+        // Flatten all bookings from all venues (handle both old and new formats)
         const allBookings = [];
         venues.forEach(venue => {
+          // New format: bookings array
           if (venue.bookings && venue.bookings.length > 0) {
             venue.bookings.forEach(booking => {
               const bookingDate = new Date(booking.date + 'T00:00:00');
@@ -749,6 +750,20 @@
                 });
               }
             });
+          } 
+          // Old format: single confirmedBookingDate (for backward compatibility)
+          else if (venue.confirmedBookingDate) {
+            const bookingDate = new Date(venue.confirmedBookingDate + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (bookingDate >= today) {
+              allBookings.push({
+                ...venue,
+                displayDate: venue.confirmedBookingDate,
+                displayShowtime: venue.showtime || '',
+                displayNotes: ''
+              });
+            }
           }
         });
         
@@ -1696,6 +1711,9 @@
         // Keep old fields for backward compatibility during migration
         confirmedBookingDate: ''
       });
+      
+      const [showAddBooking, setShowAddBooking] = React.useState(false);
+      const [newBooking, setNewBooking] = React.useState({ date: '', showtime: '', notes: '' });
 
       // Migrate old confirmedBookingDate to bookings array on mount
       React.useEffect(() => {
@@ -2027,23 +2045,104 @@
                 )
               )),
               
-              // Add booking button
-              React.createElement('button', {
+              // Add booking form/button
+              !showAddBooking ? React.createElement('button', {
                 type: 'button',
-                onClick: () => {
-                  const date = prompt('Booking date (YYYY-MM-DD):');
-                  if (!date) return;
-                  
-                  const showtime = prompt('Showtime (optional, e.g., "8:00 PM"):') || '';
-                  const notes = prompt('Notes (optional):') || '';
-                  
-                  const newBookings = [...(formData.bookings || []), { date, showtime, notes }];
-                  // Sort by date
-                  newBookings.sort((a, b) => new Date(a.date) - new Date(b.date));
-                  setFormData({...formData, bookings: newBookings});
-                },
+                onClick: () => setShowAddBooking(true),
                 className: 'w-full px-4 py-2 bg-green-500 text-white rounded-xl font-medium hover:bg-green-600'
-              }, '+ Add Booking')
+              }, '+ Add Booking') : React.createElement('div', {
+                className: 'border-2 border-green-200 rounded-xl p-4 bg-green-50'
+              },
+                React.createElement('h4', {
+                  className: 'font-semibold text-gray-700 mb-3'
+                }, 'Add New Booking'),
+                
+                // Date picker
+                React.createElement('div', {
+                  className: 'mb-3'
+                },
+                  React.createElement('label', {
+                    className: 'block text-sm font-medium text-gray-700 mb-1'
+                  }, 'Date *'),
+                  React.createElement('input', {
+                    type: 'date',
+                    value: newBooking.date,
+                    onChange: (e) => setNewBooking({...newBooking, date: e.target.value}),
+                    className: 'w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500'
+                  })
+                ),
+                
+                // Time dropdown
+                React.createElement('div', {
+                  className: 'mb-3'
+                },
+                  React.createElement('label', {
+                    className: 'block text-sm font-medium text-gray-700 mb-1'
+                  }, 'Showtime (optional)'),
+                  React.createElement('select', {
+                    value: newBooking.showtime,
+                    onChange: (e) => setNewBooking({...newBooking, showtime: e.target.value}),
+                    className: 'w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500 bg-white'
+                  },
+                    React.createElement('option', { value: '' }, '-- Select Time --'),
+                    Array.from({ length: 56 }, (_, i) => {
+                      const totalMinutes = (10 * 60) + (i * 15);
+                      const hours = Math.floor(totalMinutes / 60) % 24;
+                      const minutes = totalMinutes % 60;
+                      const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                      const displayHour = hours % 12 || 12;
+                      const ampm = hours >= 12 ? 'PM' : 'AM';
+                      const label = `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                      return React.createElement('option', { key: timeStr, value: timeStr }, label);
+                    })
+                  )
+                ),
+                
+                // Notes
+                React.createElement('div', {
+                  className: 'mb-3'
+                },
+                  React.createElement('label', {
+                    className: 'block text-sm font-medium text-gray-700 mb-1'
+                  }, 'Notes (optional)'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: newBooking.notes,
+                    onChange: (e) => setNewBooking({...newBooking, notes: e.target.value}),
+                    placeholder: 'e.g., Special event, outdoor stage...',
+                    className: 'w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500'
+                  })
+                ),
+                
+                // Action buttons
+                React.createElement('div', {
+                  className: 'flex gap-2'
+                },
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => {
+                      if (!newBooking.date) {
+                        alert('Please select a date');
+                        return;
+                      }
+                      const newBookings = [...(formData.bookings || []), { ...newBooking }];
+                      newBookings.sort((a, b) => new Date(a.date) - new Date(b.date));
+                      setFormData({...formData, bookings: newBookings});
+                      setNewBooking({ date: '', showtime: '', notes: '' });
+                      setShowAddBooking(false);
+                    },
+                    className: 'flex-1 px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600'
+                  }, 'Save Booking'),
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => {
+                      setNewBooking({ date: '', showtime: '', notes: '' });
+                      setShowAddBooking(false);
+                    },
+                    className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
             ),
 
             // Typical Pay
