@@ -865,17 +865,24 @@
                 return React.createElement('button', {
                   key: day,
                   onClick: () => setSelectedDate(hasBookings ? dateStr : null),
-                  className: `aspect-square p-2 rounded-lg text-center transition-colors ${
+                  className: `aspect-square p-1 rounded-lg transition-colors overflow-hidden ${
                     isSelected ? 'bg-purple-500 text-white font-bold' :
-                    hasBookings ? 'bg-green-100 text-green-800 font-semibold hover:bg-green-200' :
+                    hasBookings ? 'bg-green-100 text-green-800 hover:bg-green-200' :
                     isToday ? 'bg-blue-50 text-blue-800' :
                     'text-gray-700 hover:bg-gray-100'
                   }`
                 },
-                  React.createElement('div', null, day),
+                  React.createElement('div', {
+                    className: 'font-semibold text-sm'
+                  }, day),
                   hasBookings && React.createElement('div', {
-                    className: 'text-xs mt-1'
-                  }, `${hasBookings.length} gig${hasBookings.length > 1 ? 's' : ''}`)
+                    className: 'text-xs mt-1 space-y-0.5 overflow-hidden'
+                  }, hasBookings.map((booking, idx) =>
+                    React.createElement('div', {
+                      key: idx,
+                      className: 'truncate leading-tight'
+                    }, booking.name)
+                  ))
                 );
               })
             )
@@ -919,6 +926,50 @@
                 }
               })
             ))
+          ),
+          
+          // All Future Bookings List
+          React.createElement('div', {
+            className: 'bg-white rounded-2xl shadow-xl p-6'
+          },
+            React.createElement('h3', {
+              className: 'text-xl font-bold text-gray-900 mb-4'
+            }, 'All Future Bookings'),
+            allBookings.length === 0 
+              ? React.createElement('p', {
+                  className: 'text-gray-600 text-center py-8'
+                }, 'No bookings scheduled')
+              : React.createElement('div', {
+                  className: 'space-y-3'
+                }, allBookings.sort((a, b) => new Date(a.displayDate) - new Date(b.displayDate)).map((venue, idx) =>
+                  React.createElement(VenueCard, {
+                    key: `${venue.id}-${idx}`,
+                    venue: venue,
+                    onView: () => {
+                      setViewingVenue(venue);
+                      setShowCalendar(false);
+                      setReturnToCalendar(true);
+                    },
+                    onEdit: () => {
+                      setEditingVenue(venue);
+                      setShowCalendar(false);
+                      setShowVenueForm(true);
+                    },
+                    onDelete: async () => {
+                      if (!db) return;
+                      try {
+                        await db.collection('venues').doc(venue.id).delete();
+                      } catch (error) {
+                        console.error('Error deleting venue:', error);
+                        alert('Error deleting venue');
+                      }
+                    },
+                    onEmail: () => {
+                      setEmailVenue(venue);
+                      setShowCalendar(false);
+                    }
+                  })
+                ))
           )
         );
       }
