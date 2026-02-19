@@ -835,12 +835,9 @@
             setEmailVenue(viewingVenue);
             setViewingVenue(null);
           },
-          onStatusChange: () => {
-            // Refresh the venue from the venues array after status change
-            const updatedVenue = venues.find(v => v.id === viewingVenue.id);
-            if (updatedVenue) {
-              setViewingVenue({...updatedVenue});
-            }
+          onStatusChange: (newStatus) => {
+            // Immediately update viewing venue with new status
+            setViewingVenue({...viewingVenue, status: newStatus});
           }
         });
       }
@@ -2102,7 +2099,7 @@
           
           try {
             await db.collection('venues').doc(venue.id).update(updates);
-            if (onStatusChange) onStatusChange();
+            if (onStatusChange) onStatusChange(newStatus);
           } catch (error) {
             console.error('Error updating status:', error);
             alert('Error updating status');
@@ -2111,7 +2108,7 @@
           // Normal status change
           try {
             await db.collection('venues').doc(venue.id).update({ status: newStatus });
-            if (onStatusChange) onStatusChange();
+            if (onStatusChange) onStatusChange(newStatus);
           } catch (error) {
             console.error('Error updating status:', error);
             alert('Error updating status');
