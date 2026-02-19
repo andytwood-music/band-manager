@@ -829,15 +829,15 @@
             },
               React.createElement('button', {
                 onClick: () => setCurrentMonth(new Date(year, month - 1, 1)),
-                className: 'p-2 hover:bg-gray-100 rounded-lg'
-              }, React.createElement(Icon, { name: 'ChevronLeft', size: 24 })),
+                className: 'px-4 py-2 hover:bg-gray-100 rounded-lg font-bold text-2xl'
+              }, '←'),
               React.createElement('h2', {
                 className: 'text-xl font-bold text-gray-900'
               }, monthName),
               React.createElement('button', {
                 onClick: () => setCurrentMonth(new Date(year, month + 1, 1)),
-                className: 'p-2 hover:bg-gray-100 rounded-lg'
-              }, React.createElement(Icon, { name: 'ChevronRight', size: 24 }))
+                className: 'px-4 py-2 hover:bg-gray-100 rounded-lg font-bold text-2xl'
+              }, '→')
             ),
             
             // Calendar grid
