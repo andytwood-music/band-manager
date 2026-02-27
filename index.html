@@ -1757,33 +1757,70 @@
           }, venue.status)
         ),
 
-        (venue.displayDate || venue.confirmedBookingDate) && (() => {
-          const dateToShow = venue.displayDate || venue.confirmedBookingDate;
-          const showtimeToShow = venue.displayShowtime || venue.showtime;
-          
-          const bookingDate = new Date(dateToShow + 'T00:00:00');
+        // Show soonest booking from bookings array (or fall back to old field)
+        (() => {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          if (bookingDate >= today) {
-            const dateStr = bookingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-            let displayStr = '📅 Booked: ' + dateStr;
-            
-            if (showtimeToShow) {
-              displayStr += ' @ ' + showtimeToShow;
-              if (venue.state) {
-                const timezone = getTimezoneForState(venue.state);
-                displayStr += ' ' + timezone;
-              }
+          
+          let soonestBooking = null;
+          
+          // Check new bookings array first
+          if (venue.bookings && venue.bookings.length > 0) {
+            const futureBookings = venue.bookings
+              .filter(b => new Date(b.date + 'T00:00:00') >= today)
+              .sort((a, b) => new Date(a.date) - new Date(b.date));
+            if (futureBookings.length > 0) {
+              soonestBooking = {
+                date: futureBookings[0].date,
+                showtime: futureBookings[0].showtime,
+                notes: futureBookings[0].notes
+              };
             }
-            
-            if (venue.displayNotes) {
-              displayStr += ' • ' + venue.displayNotes;
-            }
-            
-            return React.createElement('p', {
-              className: 'text-sm font-semibold text-green-600 mb-2'
-            }, displayStr);
           }
+          // Fall back to old format if no new bookings
+          else if (venue.confirmedBookingDate) {
+            const bookingDate = new Date(venue.confirmedBookingDate + 'T00:00:00');
+            if (bookingDate >= today) {
+              soonestBooking = {
+                date: venue.confirmedBookingDate,
+                showtime: venue.showtime || '',
+                notes: ''
+              };
+            }
+          }
+          // Also check displayDate (for calendar view compatibility)
+          else if (venue.displayDate) {
+            const bookingDate = new Date(venue.displayDate + 'T00:00:00');
+            if (bookingDate >= today) {
+              soonestBooking = {
+                date: venue.displayDate,
+                showtime: venue.displayShowtime || '',
+                notes: venue.displayNotes || ''
+              };
+            }
+          }
+          
+          if (!soonestBooking) return null;
+          
+          const bookingDate = new Date(soonestBooking.date + 'T00:00:00');
+          const dateStr = bookingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          let displayStr = '📅 Booked: ' + dateStr;
+          
+          if (soonestBooking.showtime) {
+            displayStr += ' @ ' + soonestBooking.showtime;
+            if (venue.state) {
+              const timezone = getTimezoneForState(venue.state);
+              displayStr += ' ' + timezone;
+            }
+          }
+          
+          if (soonestBooking.notes) {
+            displayStr += ' • ' + soonestBooking.notes;
+          }
+          
+          return React.createElement('p', {
+            className: 'text-sm font-semibold text-green-600 mb-2'
+          }, displayStr);
         })(),
 
         venue.lastContacted && React.createElement('p', {
