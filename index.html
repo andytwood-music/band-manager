@@ -1437,7 +1437,7 @@
                           const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                           const statusColor = booking.status === 'Confirmed' ? '#10B981' : '#F59E0B';
                           const statusText = booking.status || 'Confirmed';
-                          bookingsHTML += \`<p style="margin: 2px 0; font-size: 11px; color: #333;">📅 \${dateStr} <span style="color: \${statusColor}; font-weight: 600;">\${statusText}</span></p>\`;
+                          bookingsHTML += '<p style="margin: 2px 0; font-size: 11px; color: #333;">📅 ' + dateStr + ' <span style="color: ' + statusColor + '; font-weight: 600;">' + statusText + '</span></p>';
                         });
                         bookingsHTML += '</div>';
                       }
@@ -1447,7 +1447,7 @@
                         const dateStr = bookingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                         bookingsHTML = '<div style="margin-bottom: 8px; padding-top: 8px; border-top: 1px solid #ddd;">';
                         bookingsHTML += '<p style="margin: 0 0 4px 0; font-weight: 600; font-size: 11px; color: #888;">UPCOMING BOOKING:</p>';
-                        bookingsHTML += \`<p style="margin: 2px 0; font-size: 11px; color: #10B981; font-weight: 600;">📅 \${dateStr}</p>\`;
+                        bookingsHTML += '<p style="margin: 2px 0; font-size: 11px; color: #10B981; font-weight: 600;">📅 ' + dateStr + '</p>';
                         bookingsHTML += '</div>';
                       }
                     }
