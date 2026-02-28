@@ -1415,10 +1415,45 @@
 
             const infoWindow = new google.maps.InfoWindow({
               content: `
-                <div style="padding: 8px; max-width: 200px;">
+                <div style="padding: 8px; max-width: 250px;">
                   <h3 style="margin: 0 0 4px 0; font-weight: bold; font-size: 14px;">${venue.name}</h3>
                   <p style="margin: 0 0 4px 0; color: #666; font-size: 12px;">${venue.city}, ${venue.state}</p>
                   <p style="margin: 0 0 8px 0; color: #666; font-size: 12px;">Status: ${venue.status}</p>
+                  ${(() => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    let bookingsHTML = '';
+                    
+                    if (venue.bookings && venue.bookings.length > 0) {
+                      const futureBookings = venue.bookings
+                        .filter(b => new Date(b.date + 'T00:00:00') >= today)
+                        .sort((a, b) => new Date(a.date) - new Date(b.date));
+                      
+                      if (futureBookings.length > 0) {
+                        bookingsHTML = '<div style="margin-bottom: 8px; padding-top: 8px; border-top: 1px solid #ddd;">';
+                        bookingsHTML += '<p style="margin: 0 0 4px 0; font-weight: 600; font-size: 11px; color: #888;">UPCOMING BOOKINGS:</p>';
+                        futureBookings.forEach(booking => {
+                          const date = new Date(booking.date + 'T00:00:00');
+                          const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          const statusColor = booking.status === 'Confirmed' ? '#10B981' : '#F59E0B';
+                          const statusText = booking.status || 'Confirmed';
+                          bookingsHTML += \`<p style="margin: 2px 0; font-size: 11px; color: #333;">📅 \${dateStr} <span style="color: \${statusColor}; font-weight: 600;">\${statusText}</span></p>\`;
+                        });
+                        bookingsHTML += '</div>';
+                      }
+                    } else if (venue.confirmedBookingDate) {
+                      const bookingDate = new Date(venue.confirmedBookingDate + 'T00:00:00');
+                      if (bookingDate >= today) {
+                        const dateStr = bookingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        bookingsHTML = '<div style="margin-bottom: 8px; padding-top: 8px; border-top: 1px solid #ddd;">';
+                        bookingsHTML += '<p style="margin: 0 0 4px 0; font-weight: 600; font-size: 11px; color: #888;">UPCOMING BOOKING:</p>';
+                        bookingsHTML += \`<p style="margin: 2px 0; font-size: 11px; color: #10B981; font-weight: 600;">📅 \${dateStr}</p>\`;
+                        bookingsHTML += '</div>';
+                      }
+                    }
+                    
+                    return bookingsHTML;
+                  })()}
                   <button 
                     onclick="window.selectVenueFromMap('${venue.id}')"
                     style="background: #8B5CF6; color: white; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;"
