@@ -2176,7 +2176,7 @@
       const [formData, setFormData] = React.useState(venue || {
         name: '', city: '', state: '', phone: '', email: '', address: '', notes: '',
         playedBefore: false, category: '', mostRecentlyPlayed: '', website: '', region: '',
-        status: 'Not Contacted', bookings: [], showtime: '',
+        status: 'Not Contacted', bookings: [], playHistory: [], showtime: '',
         typicalPay: '', lastPay: null, lastPayDate: null,
         merchSales: null, merchSalesDate: null,
         latitude: null, longitude: null,
@@ -2187,6 +2187,8 @@
       
       const [showAddBooking, setShowAddBooking] = React.useState(false);
       const [newBooking, setNewBooking] = React.useState({ date: '', showtime: '', notes: '', status: 'Confirmed' });
+      const [showAddPastShow, setShowAddPastShow] = React.useState(false);
+      const [newPastShow, setNewPastShow] = React.useState({ date: '', showtime: '', notes: '', status: 'Confirmed' });
 
       // Migrate old confirmedBookingDate to bookings array on mount
       React.useEffect(() => {
@@ -2653,6 +2655,148 @@
                     onClick: () => {
                       setNewBooking({ date: '', showtime: '', notes: '', status: 'Confirmed' });
                       setShowAddBooking(false);
+                    },
+                    className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            ),
+
+            // Past Shows (Play History)
+            React.createElement('div', null,
+              React.createElement('label', {
+                className: 'block text-lg font-semibold text-gray-700 mb-2'
+              }, 'Past Shows'),
+              
+              // List existing past shows
+              formData.playHistory && formData.playHistory.length > 0 && React.createElement('div', {
+                className: 'mb-3 space-y-2'
+              }, formData.playHistory.map((show, idx) =>
+                React.createElement('div', {
+                  key: idx,
+                  className: 'flex items-center gap-2 p-3 bg-gray-50 rounded-lg'
+                },
+                  React.createElement('div', {
+                    className: 'flex-1'
+                  },
+                    React.createElement('div', {
+                      className: 'font-medium text-gray-600'
+                    }, new Date(show.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })),
+                    show.showtime && React.createElement('div', {
+                      className: 'text-sm text-gray-600'
+                    }, show.showtime),
+                    show.notes && React.createElement('div', {
+                      className: 'text-sm text-gray-500 italic'
+                    }, show.notes)
+                  ),
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => {
+                      const newHistory = formData.playHistory.filter((_, i) => i !== idx);
+                      setFormData({...formData, playHistory: newHistory});
+                    },
+                    className: 'px-3 py-1 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200'
+                  }, 'Delete')
+                )
+              )),
+              
+              // Add past show form/button
+              !showAddPastShow ? React.createElement('button', {
+                type: 'button',
+                onClick: () => setShowAddPastShow(true),
+                className: 'w-full px-4 py-2 bg-gray-500 text-white rounded-xl font-medium hover:bg-gray-600'
+              }, '+ Add Past Show') : React.createElement('div', {
+                className: 'border-2 border-gray-200 rounded-xl p-4 bg-gray-50'
+              },
+                React.createElement('h4', {
+                  className: 'font-semibold text-gray-700 mb-3'
+                }, 'Add Past Show'),
+                
+                // Date picker
+                React.createElement('div', {
+                  className: 'mb-3'
+                },
+                  React.createElement('label', {
+                    className: 'block text-sm font-medium text-gray-700 mb-1'
+                  }, 'Date *'),
+                  React.createElement('input', {
+                    type: 'date',
+                    value: newPastShow.date,
+                    onChange: (e) => setNewPastShow({...newPastShow, date: e.target.value}),
+                    className: 'w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-gray-500'
+                  })
+                ),
+                
+                // Time dropdown
+                React.createElement('div', {
+                  className: 'mb-3'
+                },
+                  React.createElement('label', {
+                    className: 'block text-sm font-medium text-gray-700 mb-1'
+                  }, 'Showtime (optional)'),
+                  React.createElement('select', {
+                    value: newPastShow.showtime,
+                    onChange: (e) => setNewPastShow({...newPastShow, showtime: e.target.value}),
+                    className: 'w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-gray-500 bg-white'
+                  },
+                    React.createElement('option', { value: '' }, '-- Select Time --'),
+                    Array.from({ length: 56 }, (_, i) => {
+                      const totalMinutes = (10 * 60) + (i * 15);
+                      const hours = Math.floor(totalMinutes / 60) % 24;
+                      const minutes = totalMinutes % 60;
+                      const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                      const displayHour = hours % 12 || 12;
+                      const ampm = hours >= 12 ? 'PM' : 'AM';
+                      const label = `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                      return React.createElement('option', { key: timeStr, value: timeStr }, label);
+                    })
+                  )
+                ),
+                
+                // Notes
+                React.createElement('div', {
+                  className: 'mb-3'
+                },
+                  React.createElement('label', {
+                    className: 'block text-sm font-medium text-gray-700 mb-1'
+                  }, 'Notes (optional)'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: newPastShow.notes,
+                    onChange: (e) => setNewPastShow({...newPastShow, notes: e.target.value}),
+                    placeholder: 'e.g., Great crowd, packed house...',
+                    className: 'w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-gray-500'
+                  })
+                ),
+                
+                // Action buttons
+                React.createElement('div', {
+                  className: 'flex gap-2'
+                },
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => {
+                      if (!newPastShow.date) {
+                        alert('Please select a date');
+                        return;
+                      }
+                      const newHistory = [...(formData.playHistory || []), { ...newPastShow }];
+                      newHistory.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort most recent first
+                      setFormData({
+                        ...formData, 
+                        playHistory: newHistory,
+                        mostRecentlyPlayed: newHistory[0].date // Update mostRecentlyPlayed
+                      });
+                      setNewPastShow({ date: '', showtime: '', notes: '', status: 'Confirmed' });
+                      setShowAddPastShow(false);
+                    },
+                    className: 'flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600'
+                  }, 'Save Past Show'),
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => {
+                      setNewPastShow({ date: '', showtime: '', notes: '', status: 'Confirmed' });
+                      setShowAddPastShow(false);
                     },
                     className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300'
                   }, 'Cancel')
