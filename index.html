@@ -410,6 +410,7 @@
       const [searchQuery, setSearchQuery] = useState('');
       const [statusFilter, setStatusFilter] = useState('All');
       const [regionFilter, setRegionFilter] = useState('All');
+      const [categoryFilter, setCategoryFilter] = useState('All');
       const [editingVenue, setEditingVenue] = useState(null);
       const [showEmailGenerator, setShowEmailGenerator] = useState(false);
       const [selectedVenues, setSelectedVenues] = useState([]);
@@ -635,10 +636,11 @@
 
           const matchesStatus = statusFilter === 'All' || venue.status === statusFilter;
           const matchesRegion = regionFilter === 'All' || venue.region === regionFilter;
+          const matchesCategory = categoryFilter === 'All' || venue.category === categoryFilter;
 
-          return matchesSearch && matchesStatus && matchesRegion;
+          return matchesSearch && matchesStatus && matchesRegion && matchesCategory;
         });
-      }, [venues, searchQuery, statusFilter, regionFilter]);
+      }, [venues, searchQuery, statusFilter, regionFilter, categoryFilter]);
 
       // Get unique regions
       const regions = useMemo(() => {
@@ -720,7 +722,7 @@
 
             // Filters
             React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-4 gap-4' },
-              React.createElement('div', { className: 'md:col-span-2' },
+              React.createElement('div', null,
                 React.createElement('div', { className: 'relative' },
                   React.createElement(Icon, {
                     name: 'Search',
@@ -753,6 +755,16 @@
                 React.createElement('option', { value: 'All' }, 'All Regions'),
                 regions.map(region =>
                   React.createElement('option', { key: region, value: region }, region)
+                )
+              ),
+              React.createElement('select', {
+                value: categoryFilter,
+                onChange: (e) => setCategoryFilter(e.target.value),
+                className: 'px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent'
+              },
+                React.createElement('option', { value: 'All' }, 'All Categories'),
+                CATEGORY_OPTIONS.filter(c => c).map(category =>
+                  React.createElement('option', { key: category, value: category }, category)
                 )
               )
             ),
