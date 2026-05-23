@@ -459,14 +459,25 @@
               venue.bookings.forEach(booking => {
                 const bookingDate = new Date(booking.date + 'T00:00:00');
                 if (bookingDate < today) {
-                  // Move to play history
-                  pastBookings.push({
-                    date: booking.date,
-                    showtime: booking.showtime || '',
-                    notes: booking.notes || '',
-                    status: booking.status || 'Confirmed'
-                  });
-                  needsUpdate = true;
+                  // Check if this show already exists in playHistory
+                  const alreadyInHistory = pastBookings.some(show => 
+                    show.date === booking.date && 
+                    show.showtime === (booking.showtime || '')
+                  );
+                  
+                  if (!alreadyInHistory) {
+                    // Move to play history only if not already there
+                    pastBookings.push({
+                      date: booking.date,
+                      showtime: booking.showtime || '',
+                      notes: booking.notes || '',
+                      status: booking.status || 'Confirmed'
+                    });
+                    needsUpdate = true;
+                  } else {
+                    // Already in history, just remove from bookings
+                    needsUpdate = true;
+                  }
                 } else {
                   futureBookings.push(booking);
                 }
