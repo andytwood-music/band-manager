@@ -353,18 +353,18 @@
       if (venue.website) descriptionParts.push(`Website: ${venue.website}`);
       if (notes) descriptionParts.push(`Notes: ${notes}`);
       if (venue.notes) descriptionParts.push(`Venue Notes: ${venue.notes}`);
-      const description = descriptionParts.join('\\n');
+      const description = descriptionParts.join('%0A'); // URL-encoded newline
       
       // Build Google Calendar URL
       const params = new URLSearchParams({
         action: 'TEMPLATE',
         text: title,
         dates: `${startDate}/${endDate}`,
-        details: description,
         location: location
       });
       
-      const url = `https://calendar.google.com/calendar/render?${params.toString()}`;
+      // Add description separately to avoid double-encoding
+      const url = `https://calendar.google.com/calendar/render?${params.toString()}&details=${description}`;
       window.open(url, '_blank');
     }
 
