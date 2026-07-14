@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Road Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#141210; --paper:#efe8db; --card:#fbf8f2;
+    --accent:#e0452a; --accent2:#f0b429; --muted:#726858; --line:#141210;
+    --stack:'Archivo', system-ui, -apple-system, sans-serif;
+    --black:'Archivo Black','Archivo',system-ui,sans-serif;
+    --mono:'JetBrains Mono', ui-monospace, Menlo, monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{background:#cfc7b6;font-family:var(--stack);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  #app{max-width:480px;margin:0 auto;background:var(--paper);min-height:100vh;box-shadow:0 0 40px rgba(0,0,0,.18);position:relative;}
+  a{color:inherit;} button{font-family:var(--stack);cursor:pointer;border:none;background:none;}
+
+  .loading{padding:60px 24px;text-align:center;font-family:var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:12px;}
+
+  /* header */
+  .apphead{background:var(--ink);color:#fff;padding:20px;}
+  .apphead .kick{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);}
+  .apphead .ttl{font-family:var(--black);font-size:28px;line-height:.95;text-transform:uppercase;margin-top:6px;}
+  .apphead .sub{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:#b9ae9d;margin-top:9px;text-transform:uppercase;}
+  .viewbadge{display:inline-block;margin-top:10px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;background:#33302b;color:#b9ae9d;}
+  .viewbadge.edit{background:var(--accent);color:#fff;}
+
+  .wrap{padding:14px;}
+  .newbtn{width:100%;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:14px;margin-bottom:14px;}
+
+  /* tour list cards */
+  .tourcard{background:var(--card);border:1.5px solid var(--line);padding:16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
+  .tourcard:active{transform:translateY(1px);}
+  .tourcard .tn{font-family:var(--black);font-size:19px;text-transform:uppercase;line-height:1;}
+  .tourcard .ts{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:6px;}
+  .tourcard .chev{font-size:20px;color:var(--muted);}
+  .empty{padding:30px 16px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5;}
+
+  /* stop cards (tour overview) */
+  .stopcard{background:var(--card);border:1.5px solid var(--line);margin-bottom:12px;display:flex;overflow:hidden;position:relative;}
+  .stopcard:active{transform:translateY(1px);}
+  .sc-day{width:64px;flex-shrink:0;background:var(--ink);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;}
+  .sc-dow{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--accent2);}
+  .sc-dnum{font-family:var(--black);font-size:26px;line-height:1;margin-top:2px;}
+  .sc-mon{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:#b9ae9d;margin-top:3px;}
+  .sc-body{padding:11px 14px;flex:1;min-width:0;}
+  .stopcard:has(.sc-tag) .sc-body,.stopcard:has(.sc-dh) .sc-body{padding-top:22px;}
+  .sc-venue{font-family:var(--black);font-size:17px;line-height:1.02;text-transform:uppercase;}
+  .sc-city{font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;margin-top:4px;}
+  .sc-meta{display:flex;gap:14px;margin-top:9px;}
+  .sc-mi{display:flex;flex-direction:column;}
+  .sc-mk{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;}
+  .sc-mv{font-family:var(--mono);font-size:13px;font-weight:700;margin-top:1px;}
+  .sc-mv.hot{color:var(--accent);}
+  .sc-chev{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:18px;}
+  .sc-tag{position:absolute;top:0;right:0;background:var(--accent);color:#fff;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.1em;padding:3px 7px;text-transform:uppercase;}
+  .sc-dh{position:absolute;top:0;left:0;background:var(--accent2);color:var(--ink);font-family:var(--mono);font-size:8px;font-weight:800;letter-spacing:.08em;padding:3px 7px;text-transform:uppercase;}
+
+  /* topbar */
+  .topbar{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;}
+  .tb-back{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.08em;color:#fff;text-transform:uppercase;}
+  .tb-btn{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink);background:var(--accent2);padding:6px 11px;letter-spacing:.06em;}
+
+  /* hero */
+  .hero{position:relative;height:200px;background:var(--ink);overflow:hidden;}
+  .hero img{width:100%;height:100%;object-fit:cover;opacity:.6;}
+  .hero-fallback{position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.03) 0 14px,transparent 14px 28px),linear-gradient(160deg,#2a2622,#141210 70%);}
+  .hero-grad{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,18,16,.1),rgba(20,18,16,.94));}
+  .hero-flag{position:absolute;top:0;left:0;background:var(--accent);color:#fff;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;padding:6px 12px;text-transform:uppercase;}
+  .hero-dh{position:absolute;top:0;right:0;background:var(--accent2);color:var(--ink);font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.1em;padding:6px 12px;text-transform:uppercase;}
+  .hero-txt{position:absolute;left:0;right:0;bottom:0;padding:0 18px 16px;color:#fff;}
+  .hero-date{display:inline-block;font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.1em;color:var(--ink);background:var(--accent2);padding:4px 9px;text-transform:uppercase;margin-bottom:9px;}
+  .hero-venue{font-family:var(--black);font-size:32px;line-height:.9;text-transform:uppercase;}
+  .hero-addr{font-family:var(--mono);font-size:11px;letter-spacing:.04em;margin-top:8px;color:#e8e0d2;}
+  .hero-addr a{border-bottom:1.5px solid var(--accent2);text-decoration:none;padding-bottom:1px;}
+  .photo-btn{position:absolute;top:34px;right:10px;background:rgba(20,18,16,.7);color:#fff;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;padding:6px 10px;text-transform:uppercase;border:1px solid rgba(255,255,255,.3);}
+
+  .calls{display:grid;grid-template-columns:1fr 1fr;background:var(--ink);}
+  .call{padding:12px 16px;border-top:1px solid rgba(255,255,255,.12);}
+  .call:nth-child(odd){border-right:1px solid rgba(255,255,255,.12);}
+  .call .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#b9ae9d;}
+  .call .v{font-family:var(--mono);font-size:22px;font-weight:800;color:#fff;margin-top:3px;}
+  .call.hot .v{color:var(--accent2);}
+
+  .content{padding:16px 16px 44px;}
+  .block{margin-bottom:18px;}
+  .eyebrow{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);padding-bottom:6px;margin-bottom:11px;border-bottom:2px solid var(--line);}
+  .drivebar{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px dashed var(--line);padding:12px 14px;margin-bottom:18px;}
+  .drivebar .ico{font-size:24px;}
+  .drivebar .dv{font-family:var(--mono);font-weight:800;font-size:16px;}
+  .drivebar .dl{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+  .callbtn{display:flex;align-items:center;gap:13px;background:var(--ink);color:#fff;padding:14px 16px;width:100%;text-decoration:none;}
+  .callbtn .ph-ico{font-size:22px;}
+  .callbtn .nm{font-weight:700;font-size:16px;}
+  .callbtn .num{font-family:var(--mono);font-weight:800;font-size:15px;color:var(--accent2);margin-top:1px;}
+  .callbtn .role{font-family:var(--mono);font-size:9.5px;color:#b9ae9d;text-transform:uppercase;letter-spacing:.06em;margin-top:3px;}
+  .callbtn .go{margin-left:auto;font-family:var(--mono);font-size:10px;color:#b9ae9d;letter-spacing:.1em;}
+  .logi{font-size:14px;line-height:1.55;color:#2c2620;white-space:pre-wrap;}
+  .row{display:flex;justify-content:space-between;gap:14px;padding:6px 0;font-size:14px;line-height:1.4;border-bottom:1px solid rgba(20,18,16,.08);}
+  .row:last-child{border-bottom:none;}
+  .row .lab{color:var(--muted);font-weight:500;flex-shrink:0;font-size:13px;}
+  .row .val{text-align:right;font-weight:600;}
+  .row .val a{border-bottom:1.5px solid var(--accent);text-decoration:none;padding-bottom:1px;}
+  .row .val.mono{font-family:var(--mono);font-weight:700;}
+  .notes{font-size:14px;line-height:1.6;color:#2c2620;white-space:pre-wrap;}
+  .navrow{display:flex;gap:10px;margin-top:26px;}
+  .navrow a{flex:1;text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:13px 8px;border:1.5px solid var(--line);text-decoration:none;color:var(--ink);background:var(--card);}
+  .navrow a.disabled{opacity:.3;pointer-events:none;}
+
+  /* edit */
+  .edit-field{margin-bottom:12px;}
+  .edit-field label{display:block;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+  .edit-field input,.edit-field textarea{width:100%;font-family:var(--stack);font-size:15px;padding:10px 12px;border:1.5px solid var(--line);background:#fff;color:var(--ink);}
+  .edit-field textarea{resize:vertical;min-height:70px;line-height:1.5;}
+  .edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .edit-sec{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:20px 0 10px;padding-bottom:5px;border-bottom:2px solid var(--line);}
+  .edit-sec:first-child{margin-top:4px;}
+
+  /* builder */
+  .b-name{width:100%;font-family:var(--black);font-size:22px;padding:12px 14px;border:1.5px solid var(--line);background:#fff;text-transform:uppercase;margin-bottom:16px;}
+  .b-hint{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  .showpick{background:var(--card);border:1.5px solid var(--line);padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;}
+  .showpick.sel{background:var(--ink);color:#fff;}
+  .showpick .chk{width:22px;height:22px;border:1.5px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;}
+  .showpick.sel .chk{background:var(--accent2);color:var(--ink);border-color:var(--accent2);}
+  .showpick .sp-v{font-weight:700;font-size:15px;}
+  .showpick .sp-d{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.04em;}
+  .showpick.sel .sp-d{color:#b9ae9d;}
+  .savebar{position:sticky;bottom:0;background:var(--paper);padding:14px;border-top:1.5px solid var(--line);display:flex;gap:10px;}
+  .savebar button{flex:1;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:14px;border:1.5px solid var(--line);}
+  .savebar .save{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .savebar .cancel{background:var(--card);color:var(--ink);}
+  .delbtn{width:100%;margin-top:10px;background:transparent;border:1.5px solid var(--accent);color:var(--accent);font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:12px;}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading road sheet…</div></div>
+<input type="file" id="photoInput" accept="image/*" class="hidden">
+
+<script>
+// ============ CONFIG ============
+const firebaseConfig = {
+  apiKey: "AIzaSyDqQlSd1jo3m2g-Ntd1HZ0gM2mdhdAiKcA",
+  authDomain: "venue-manager-20db8.firebaseapp.com",
+  projectId: "venue-manager-20db8",
+  storageBucket: "venue-manager-20db8.firebasestorage.app",
+  messagingSenderId: "71416409246",
+  appId: "1:71416409246:web:4f190a8dfcab1232845f8f"
+};
+
+// ---- EDIT GATE: only this secret keyword in the URL unlocks editing ----
+// You edit via:  <your-url>/?edit=trombone
+// The band just uses the plain URL and gets a clean, read-only sheet.
+// Change "trombone" to whatever secret you want.
+const EDIT_KEY = "trombone";
+const editMode = new URLSearchParams(location.search).get("edit") === EDIT_KEY;
+
+const BAND = "Warsaw Poland Bros.";
+
+let db = null;
+try { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); }
+catch(e){ console.error("Firebase init failed", e); }
+
+// ============ STATE ============
+let venues = [];
+let tours = [];
+let view = "home";          // home | builder | tour | stop | stopEdit
+let activeTourId = null;
+let activeStopIdx = null;
+let builderName = "";
+let builderSel = [];        // [{venueId, date}]
+let photoTarget = null;     // {venueId, date}
+
+const app = document.getElementById("app");
+const photoInput = document.getElementById("photoInput");
+
+// ============ HELPERS ============
+const esc = s => (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const mapLink = a => `https://maps.google.com/?q=${encodeURIComponent(a)}`;
+const telLink = p => `tel:${(p||"").replace(/[^0-9+]/g,"")}`;
+
+function dparts(iso){
+  const d = new Date(iso+"T00:00:00");
+  return {
+    dow:["SUN","MON","TUE","WED","THU","FRI","SAT"][d.getDay()],
+    num:d.getDate(),
+    mon:["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][d.getMonth()],
+    year:d.getFullYear()
+  };
+}
+function fmtTime(t){
+  if(!t) return "";
+  const m = String(t).match(/^(\d{1,2}):(\d{2})$/);
+  if(m){ let h=+m[1]; const mm=m[2]; const ap=h>=12?"PM":"AM"; h=h%12||12; return `${h}:${mm} ${ap}`; }
+  return t;
+}
+function timeToMin(t){
+  if(!t) return 9999;
+  const m = String(t).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if(m){ let h=+m[1]; const mm=+m[2]; const ap=m[3];
+    if(ap){ if(/pm/i.test(ap)&&h!==12)h+=12; if(/am/i.test(ap)&&h===12)h=0; }
+    return h*60+mm; }
+  return 9999;
+}
+
+// Resolve a {venueId,date} ref into a full stop object (venue info + booking roadsheet fields)
+function resolveStop(ref){
+  const v = venues.find(x=>x.id===ref.venueId);
+  if(!v) return null;
+  const b = (v.bookings||[]).find(bk=>bk.date===ref.date) || {};
+  const status = b.status || "Confirmed";
+  return {
+    venueId:v.id, date:ref.date,
+    venue:v.name||"", city:(v.city||"")+(v.state?", "+v.state:""),
+    address:v.address || ((v.city||"")+", "+(v.state||"")),
+    phone:v.phone||"", website:v.website||"",
+    showtime:b.showtime||"",              // Bandy's showtime (used to prefill Set + sort)
+    setTime:b.setTime||"", loadIn:b.loadIn||"", soundcheck:b.soundcheck||"", doors:b.doors||"",
+    driveFrom:b.driveFrom||"", driveTime:b.driveTime||"", leaveBy:b.leaveBy||"",
+    contactName:b.contactName||"", contactPhone:b.contactPhone||"", contactRole:b.contactRole||"",
+    loadInNotes:b.loadInNotes||"",
+    lodgeName:b.lodgeName||"", lodgeAddress:b.lodgeAddress||"", lodgeFrom:b.lodgeFrom||"", lodgeCheckin:b.lodgeCheckin||"",
+    photo:b.photo||null, roadNotes:b.roadNotes||"",
+    tag: status && status!=="Confirmed" ? status : ""
+  };
+}
+function getSet(s){ return s.setTime || fmtTime(s.showtime); }
+
+function tourStops(tour){
+  const stops = (tour.stopRefs||[]).map(resolveStop).filter(Boolean);
+  stops.sort((a,b)=>{
+    if(a.date!==b.date) return a.date<b.date?-1:1;
+    return timeToMin(a.setTime||a.showtime) - timeToMin(b.setTime||b.showtime);
+  });
+  // mark double-headers (same date, >1 stop)
+  const counts={}; stops.forEach(s=>counts[s.date]=(counts[s.date]||0)+1);
+  stops.forEach(s=>s.doubleHeader = counts[s.date]>1);
+  return stops;
+}
+
+function upcomingShows(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const list=[];
+  venues.forEach(v=>(v.bookings||[]).forEach(b=>{
+    const d=new Date(b.date+"T00:00:00");
+    if(d>=today) list.push({venueId:v.id, venue:v.name, city:v.city, state:v.state, date:b.date, showtime:b.showtime||"", status:b.status||"Confirmed"});
+  }));
+  list.sort((a,b)=> a.date!==b.date ? (a.date<b.date?-1:1) : timeToMin(a.showtime)-timeToMin(b.showtime));
+  return list;
+}
+
+// ============ DATA ============
+async function loadData(){
+  if(!db){ app.innerHTML=`<div class="loading">Firebase not configured.</div>`; return; }
+  try{
+    const [vSnap,tSnap] = await Promise.all([
+      db.collection("venues").get(),
+      db.collection("tours").get()
+    ]);
+    venues = vSnap.docs.map(d=>({id:d.id,...d.data()}));
+    tours = tSnap.docs.map(d=>({id:d.id,...d.data()}));
+    render();
+  }catch(e){
+    console.error(e);
+    app.innerHTML=`<div class="loading">Couldn't load data.<br>${esc(e.message)}</div>`;
+  }
+}
+
+async function saveTour(){
+  if(!builderName.trim()){ alert("Give the tour a name."); return; }
+  if(builderSel.length===0){ alert("Pick at least one show."); return; }
+  try{
+    const doc={ name:builderName.trim(), stopRefs:builderSel.map(s=>({venueId:s.venueId,date:s.date})), createdAt:Date.now() };
+    const ref=await db.collection("tours").add(doc);
+    tours.push({id:ref.id,...doc});
+    builderName=""; builderSel=[]; view="tour"; activeTourId=ref.id; activeStopIdx=null;
+    window.scrollTo(0,0); render();
+  }catch(e){ console.error(e); alert("Couldn't save tour: "+e.message); }
+}
+
+async function deleteTour(id){
+  if(!confirm("Delete this tour? (Your shows and venues are not affected.)")) return;
+  try{ await db.collection("tours").doc(id).delete(); tours=tours.filter(t=>t.id!==id); view="home"; render(); }
+  catch(e){ console.error(e); alert("Couldn't delete: "+e.message); }
+}
+
+// Write roadsheet fields onto the matching booking inside a venue, without disturbing other fields
+async function saveStopFields(venueId, date, fields){
+  const v = venues.find(x=>x.id===venueId);
+  if(!v) return;
+  const bookings = (v.bookings||[]).map(bk => bk.date===date ? {...bk, ...fields} : bk);
+  await db.collection("venues").doc(venueId).update({bookings});
+  v.bookings = bookings; // update local cache
+}
+
+// compress an image file to a small dataURL so it fits comfortably in Firestore
+function compressImage(file, maxDim=900, quality=0.6){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        let {width:w,height:h}=img;
+        if(w>h && w>maxDim){ h=h*maxDim/w; w=maxDim; }
+        else if(h>maxDim){ w=w*maxDim/h; h=maxDim; }
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        resolve(c.toDataURL("image/jpeg",quality));
+      };
+      img.onerror=reject; img.src=e.target.result;
+    };
+    r.onerror=reject; r.readAsDataURL(file);
+  });
+}
+
+// ============ RENDER: HOME (tour list) ============
+function renderHome(){
+  const cards = tours
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))
+    .map(t=>{
+      const stops=tourStops(t);
+      let range="No shows";
+      if(stops.length){
+        const a=dparts(stops[0].date), b=dparts(stops[stops.length-1].date);
+        range = stops.length+" stops · "+a.mon+" "+a.num+"–"+b.num;
+      }
+      return `<div class="tourcard" data-tour="${t.id}">
+        <div><div class="tn">${esc(t.name)}</div><div class="ts">${range}</div></div>
+        <div class="chev">›</div>
+      </div>`;
+    }).join("");
+
+  app.innerHTML = `
+    <div class="apphead">
+      <div class="kick">${esc(BAND)}</div>
+      <div class="ttl">Road Sheets</div>
+      <div class="sub">${tours.length} tour${tours.length!==1?"s":""}</div>
+      <div class="viewbadge ${editMode?"edit":""}">${editMode?"✎ Edit Mode":"View Only"}</div>
+    </div>
+    <div class="wrap">
+      ${editMode?`<button class="newbtn" data-new>+ New Tour</button>`:""}
+      ${tours.length? cards : `<div class="empty">No tours yet.${editMode?" Tap “New Tour” to build one from your booked shows.":""}</div>`}
+    </div>`;
+
+  app.querySelectorAll("[data-tour]").forEach(el=>el.addEventListener("click",()=>{
+    activeTourId=el.dataset.tour; activeStopIdx=null; view="tour"; window.scrollTo(0,0); render();
+  }));
+  const nb=app.querySelector("[data-new]");
+  if(nb) nb.addEventListener("click",()=>{ builderName=""; builderSel=[]; view="builder"; window.scrollTo(0,0); render(); });
+}
+
+// ============ RENDER: BUILDER ============
+function renderBuilder(){
+  const shows = upcomingShows();
+  const rows = shows.map(s=>{
+    const dp=dparts(s.date);
+    const isSel = builderSel.some(x=>x.venueId===s.venueId && x.date===s.date);
+    const t = s.showtime?(" · "+fmtTime(s.showtime)):"";
+    return `<div class="showpick ${isSel?"sel":""}" data-pick='${esc(JSON.stringify({venueId:s.venueId,date:s.date}))}'>
+      <div class="chk">${isSel?"✓":""}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="sp-v">${esc(s.venue)}</div>
+        <div class="sp-d">${dp.dow} ${dp.mon} ${dp.num} · ${esc((s.city||"")+(s.state?", "+s.state:""))}${t}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  app.innerHTML = `
+    <div class="topbar"><button class="tb-back" data-cancel>‹ Cancel</button><span style="font-family:var(--mono);font-size:12px;letter-spacing:.08em;">NEW TOUR</span></div>
+    <div class="wrap">
+      <input class="b-name" id="bname" placeholder="Tour name…" value="${esc(builderName)}">
+      <div class="b-hint">Tap the shows to include (${builderSel.length} selected)</div>
+      ${shows.length? rows : `<div class="empty">No upcoming shows found in Bandy. Add booked dates there first.</div>`}
+    </div>
+    <div class="savebar">
+      <button class="cancel" data-cancel>Cancel</button>
+      <button class="save" data-save>Save Tour</button>
+    </div>`;
+
+  const nameInput=app.querySelector("#bname");
+  nameInput.addEventListener("input",e=>{ builderName=e.target.value; });
+  app.querySelectorAll("[data-pick]").forEach(el=>el.addEventListener("click",()=>{
+    const ref=JSON.parse(el.dataset.pick);
+    const i=builderSel.findIndex(x=>x.venueId===ref.venueId && x.date===ref.date);
+    if(i>=0) builderSel.splice(i,1); else builderSel.push(ref);
+    // preserve typed name
+    builderName = nameInput.value;
+    render();
+  }));
+  app.querySelectorAll("[data-cancel]").forEach(el=>el.addEventListener("click",()=>{ view="home"; window.scrollTo(0,0); render(); }));
+  app.querySelector("[data-save]").addEventListener("click",()=>{ builderName=nameInput.value; saveTour(); });
+}
+
+// ============ RENDER: TOUR OVERVIEW ============
+function renderTour(){
+  const tour = tours.find(t=>t.id===activeTourId);
+  if(!tour){ view="home"; return render(); }
+  const stops = tourStops(tour);
+
+  const cards = stops.map((s,i)=>{
+    const dp=dparts(s.date);
+    return `<div class="stopcard" data-open="${i}">
+      ${s.tag?`<div class="sc-tag">${esc(s.tag)}</div>`:""}
+      ${s.doubleHeader?`<div class="sc-dh">2 Shows</div>`:""}
+      <div class="sc-day"><div class="sc-dow">${dp.dow}</div><div class="sc-dnum">${dp.num}</div><div class="sc-mon">${dp.mon}</div></div>
+      <div class="sc-body">
+        <div class="sc-venue">${esc(s.venue)}</div>
+        <div class="sc-city">${esc(s.city)}</div>
+        <div class="sc-meta">
+          <div class="sc-mi"><div class="sc-mk">Load-in</div><div class="sc-mv hot">${esc(s.loadIn||"—")}</div></div>
+          <div class="sc-mi"><div class="sc-mk">Set</div><div class="sc-mv">${esc(getSet(s)||"—")}</div></div>
+          <div class="sc-mi"><div class="sc-mk">Drive</div><div class="sc-mv">${esc(s.driveTime||"—")}</div></div>
+        </div>
+      </div>
+      <div class="sc-chev">›</div>
+    </div>`;
+  }).join("");
+
+  let range="";
+  if(stops.length){ const a=dparts(stops[0].date),b=dparts(stops[stops.length-1].date); range=a.mon+" "+a.num+"–"+b.num+", "+b.year; }
+
+  app.innerHTML = `
+    <div class="apphead">
+      <div class="topbar" style="padding:0 0 12px 0;background:transparent;">
+        <button class="tb-back" data-back>‹ All Tours</button>
+        <div class="viewbadge ${editMode?"edit":""}" style="margin:0;">${editMode?"✎ Edit":"View"}</div>
+      </div>
+      <div class="kick">${esc(BAND)}</div>
+      <div class="ttl">${esc(tour.name)}</div>
+      <div class="sub">${stops.length} stops · ${range}</div>
+    </div>
+    <div class="wrap">
+      ${stops.length? cards : `<div class="empty">This tour has no resolvable shows.</div>`}
+      ${editMode?`<button class="delbtn" data-del>Delete Tour</button>`:""}
+    </div>`;
+
+  app.querySelector("[data-back]").addEventListener("click",()=>{ view="home"; window.scrollTo(0,0); render(); });
+  app.querySelectorAll("[data-open]").forEach(el=>el.addEventListener("click",()=>{
+    activeStopIdx=+el.dataset.open; view="stop"; window.scrollTo(0,0); render();
+  }));
+  const del=app.querySelector("[data-del]");
+  if(del) del.addEventListener("click",()=>deleteTour(tour.id));
+}
+
+// ============ RENDER: STOP DETAIL ============
+function renderStop(){
+  const tour = tours.find(t=>t.id===activeTourId);
+  const stops = tourStops(tour);
+  const s = stops[activeStopIdx];
+  if(!s){ view="tour"; return render(); }
+  const dp=dparts(s.date);
+  const setT = getSet(s);
+
+  const hero = s.photo ? `<img src="${s.photo}" alt="">` : `<div class="hero-fallback"></div>`;
+
+  const contact = (s.contactName||s.contactPhone) ? `
+    <div class="block"><div class="eyebrow">On-Site Contact</div>
+      <a class="callbtn" href="${telLink(s.contactPhone)}">
+        <span class="ph-ico">📞</span>
+        <span><div class="nm">${esc(s.contactName||"Contact")}</div>
+          <div class="num">${esc(s.contactPhone||"")}</div>
+          ${s.contactRole?`<div class="role">${esc(s.contactRole)}</div>`:""}</span>
+        <span class="go">TAP TO CALL ›</span>
+      </a></div>` : "";
+
+  const loadin = s.loadInNotes ? `<div class="block"><div class="eyebrow">Load-In &amp; Backline</div><div class="logi">${esc(s.loadInNotes)}</div></div>` : "";
+
+  const lodging = (s.lodgeName||s.lodgeAddress) ? `
+    <div class="block"><div class="eyebrow">Lodging</div>
+      ${s.lodgeName?`<div class="row"><span class="lab">Stay</span><span class="val">${esc(s.lodgeName)}</span></div>`:""}
+      ${s.lodgeAddress?`<div class="row"><span class="lab">Address</span><span class="val"><a href="${mapLink(s.lodgeAddress)}">${esc(s.lodgeAddress)}</a></span></div>`:""}
+      ${s.lodgeFrom?`<div class="row"><span class="lab">From venue</span><span class="val mono">${esc(s.lodgeFrom)}</span></div>`:""}
+      ${s.lodgeCheckin?`<div class="row"><span class="lab">Check-in</span><span class="val">${esc(s.lodgeCheckin)}</span></div>`:""}
+    </div>` : "";
+
+  const notes = s.roadNotes ? `<div class="block"><div class="eyebrow">Notes</div><div class="notes">${esc(s.roadNotes)}</div></div>` : "";
+
+  const prev = activeStopIdx>0 ? `data-go="${activeStopIdx-1}"` : 'class="disabled"';
+  const next = activeStopIdx<stops.length-1 ? `data-go="${activeStopIdx+1}"` : 'class="disabled"';
+
+  app.innerHTML = `
+    <div class="topbar">
+      <button class="tb-back" data-back>‹ ${esc(tour.name)}</button>
+      ${editMode?`<button class="tb-btn" data-edit>Edit</button>`:""}
+    </div>
+    <div class="hero">
+      ${hero}<div class="hero-grad"></div>
+      <div class="hero-flag">Stop ${activeStopIdx+1} of ${stops.length}</div>
+      ${s.doubleHeader?`<div class="hero-dh">2 Shows Today</div>`:""}
+      ${editMode?`<button class="photo-btn" data-photo>${s.photo?"Change Photo":"+ Add Photo"}</button>`:""}
+      <div class="hero-txt">
+        <span class="hero-date">${dp.dow} · ${dp.mon} ${dp.num}, ${dp.year}${s.tag?` · ${esc(s.tag)}`:""}</span>
+        <div class="hero-venue">${esc(s.venue)}</div>
+        <div class="hero-addr">${esc(s.city)} · <a href="${mapLink(s.address)}">Directions ›</a></div>
+      </div>
+    </div>
+    <div class="calls">
+      <div class="call hot"><div class="k">Load-In</div><div class="v">${esc(s.loadIn||"—")}</div></div>
+      <div class="call"><div class="k">Soundcheck</div><div class="v">${esc(s.soundcheck||"—")}</div></div>
+      <div class="call"><div class="k">Doors</div><div class="v">${esc(s.doors||"—")}</div></div>
+      <div class="call hot"><div class="k">Set</div><div class="v">${esc(setT||"—")}</div></div>
+    </div>
+    <div class="content">
+      <div class="drivebar"><span class="ico">🚐</span>
+        <div><div class="dv">${esc(s.driveTime||"—")}</div>
+        <div class="dl">from ${esc(s.driveFrom||"—")} · leave by ${esc(s.leaveBy||"—")}</div></div>
+      </div>
+      ${contact}${loadin}${lodging}${notes}
+      <div class="navrow"><a ${prev}>‹ Prev</a><a ${next}>Next ›</a></div>
+    </div>`;
+
+  app.querySelector("[data-back]").addEventListener("click",()=>{ view="tour"; window.scrollTo(0,0); render(); });
+  const eb=app.querySelector("[data-edit]"); if(eb) eb.addEventListener("click",()=>{ view="stopEdit"; window.scrollTo(0,0); render(); });
+  const pb=app.querySelector("[data-photo]"); if(pb) pb.addEventListener("click",()=>{ photoTarget={venueId:s.venueId,date:s.date}; photoInput.click(); });
+  app.querySelectorAll("[data-go]").forEach(el=>el.addEventListener("click",()=>{ activeStopIdx=+el.dataset.go; view="stop"; window.scrollTo(0,0); render(); }));
+}
+
+// ============ RENDER: STOP EDIT ============
+function fld(l,k,v){ return `<div class="edit-field"><label>${l}</label><input data-k="${k}" value="${esc(v)}"></div>`; }
+function ta(l,k,v){ return `<div class="edit-field"><label>${l}</label><textarea data-k="${k}">${esc(v)}</textarea></div>`; }
+
+function renderStopEdit(){
+  const tour = tours.find(t=>t.id===activeTourId);
+  const stops = tourStops(tour);
+  const s = stops[activeStopIdx];
+  if(!s){ view="tour"; return render(); }
+
+  app.innerHTML = `
+    <div class="topbar"><button class="tb-back" data-cancel>‹ Cancel</button><button class="tb-btn" data-done>Done</button></div>
+    <div class="content">
+      <div class="edit-sec">${esc(s.venue)} · ${dparts(s.date).mon} ${dparts(s.date).num}</div>
+
+      <div class="edit-sec">Call Times</div>
+      <div class="edit-grid">
+        ${fld("Load-in","loadIn",s.loadIn)}
+        ${fld("Soundcheck","soundcheck",s.soundcheck)}
+        ${fld("Doors","doors",s.doors)}
+        ${fld("Set","setTime",getSet(s))}
+      </div>
+
+      <div class="edit-sec">The Drive</div>
+      ${fld("From","driveFrom",s.driveFrom)}
+      <div class="edit-grid">${fld("Drive time","driveTime",s.driveTime)}${fld("Leave by","leaveBy",s.leaveBy)}</div>
+
+      <div class="edit-sec">On-Site Contact</div>
+      ${fld("Name","contactName",s.contactName)}
+      ${fld("Phone","contactPhone",s.contactPhone)}
+      ${fld("Role / note","contactRole",s.contactRole)}
+
+      <div class="edit-sec">Load-In &amp; Backline</div>
+      ${ta("Parking, doors, backline…","loadInNotes",s.loadInNotes)}
+
+      <div class="edit-sec">Lodging</div>
+      ${fld("Stay","lodgeName",s.lodgeName)}
+      ${fld("Address","lodgeAddress",s.lodgeAddress)}
+      <div class="edit-grid">${fld("From venue","lodgeFrom",s.lodgeFrom)}${fld("Check-in","lodgeCheckin",s.lodgeCheckin)}</div>
+
+      <div class="edit-sec">Notes</div>
+      ${ta("Anything else…","roadNotes",s.roadNotes)}
+
+      <div class="navrow"><a data-done2>Save Changes</a></div>
+    </div>`;
+
+  async function save(){
+    const fields={};
+    app.querySelectorAll("[data-k]").forEach(inp=>{ fields[inp.dataset.k]=inp.value; });
+    try{
+      await saveStopFields(s.venueId, s.date, fields);
+      view="stop"; window.scrollTo(0,0); render();
+    }catch(e){ console.error(e); alert("Couldn't save: "+e.message); }
+  }
+  app.querySelector("[data-done]").addEventListener("click",save);
+  app.querySelector("[data-done2]").addEventListener("click",save);
+  app.querySelector("[data-cancel]").addEventListener("click",()=>{ view="stop"; window.scrollTo(0,0); render(); });
+}
+
+// ============ PHOTO UPLOAD ============
+photoInput.addEventListener("change", async e=>{
+  const f=e.target.files[0]; if(!f||!photoTarget) return;
+  try{
+    const dataUrl = await compressImage(f);
+    await saveStopFields(photoTarget.venueId, photoTarget.date, {photo:dataUrl});
+    render();
+  }catch(err){ console.error(err); alert("Couldn't add photo: "+err.message); }
+  e.target.value="";
+});
+
+// ============ ROUTER ============
+function render(){
+  if(view==="home") renderHome();
+  else if(view==="builder") renderBuilder();
+  else if(view==="tour") renderTour();
+  else if(view==="stop") renderStop();
+  else if(view==="stopEdit") renderStopEdit();
+}
+
+loadData();
+</script>
+</body>
+</html>
