@@ -43,6 +43,15 @@
   .tourcard .chev{font-size:20px;color:var(--muted);}
   .empty{padding:30px 16px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5;}
 
+  /* tour hero (the wow landing) */
+  .tourhero{position:relative;background:var(--ink);padding:14px 0 0;overflow:hidden;}
+  .tourhero .hero-fallback{position:absolute;inset:0;}
+  .tourhero .hero-grad{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,18,16,.2),rgba(20,18,16,.75));}
+  .tourhero-txt{position:relative;z-index:2;padding:26px 20px 24px;}
+  .th-band{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--accent2);}
+  .th-title{font-family:var(--black);font-size:38px;line-height:.9;text-transform:uppercase;color:#fff;margin-top:10px;letter-spacing:-.01em;}
+  .th-facts{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--accent2);padding:6px 11px;margin-top:16px;}
+
   /* stop cards (tour overview) */
   .stopcard{background:var(--card);border:1.5px solid var(--line);margin-bottom:12px;display:flex;overflow:hidden;position:relative;}
   .stopcard:active{transform:translateY(1px);}
@@ -138,6 +147,8 @@
   .savebar .save{background:var(--accent);color:#fff;border-color:var(--accent);}
   .savebar .cancel{background:var(--card);color:var(--ink);}
   .delbtn{width:100%;margin-top:10px;background:transparent;border:1.5px solid var(--accent);color:var(--accent);font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:12px;}
+  .sharebtn{width:100%;margin-top:10px;background:var(--ink);border:1.5px solid var(--line);color:#fff;font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:13px;}
+  .sharebtn.done{background:var(--accent2);color:var(--ink);border-color:var(--accent2);}
   .hidden{display:none;}
 </style>
 </head>
@@ -161,7 +172,9 @@ const firebaseConfig = {
 // The band just uses the plain URL and gets a clean, read-only sheet.
 // Change "trombone" to whatever secret you want.
 const EDIT_KEY = "trombone";
-const editMode = new URLSearchParams(location.search).get("edit") === EDIT_KEY;
+const params = new URLSearchParams(location.search);
+const editMode = params.get("edit") === EDIT_KEY;
+const deepTourId = params.get("tour");   // if present, open straight to this tour
 
 const BAND = "Warsaw Poland Bros.";
 
@@ -184,6 +197,16 @@ const photoInput = document.getElementById("photoInput");
 
 // ============ HELPERS ============
 const esc = s => (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+// Escape text, then turn any real http(s) URL into a tappable link
+function linkify(s){
+  const escaped = esc(s);
+  return escaped.replace(/(https?:\/\/[^\s]+)/g, (url)=>{
+    // trim trailing punctuation that's probably sentence punctuation, not part of the URL
+    const m = url.match(/^(.*?)([.,;:)\]]*)$/);
+    const clean = m[1], trail = m[2]||"";
+    return `<a href="${clean}" target="_blank" rel="noopener" style="border-bottom:1.5px solid var(--accent);text-decoration:none;">${clean}</a>${trail}`;
+  });
+}
 const mapLink = a => `https://maps.google.com/?q=${encodeURIComponent(a)}`;
 const telLink = p => `tel:${(p||"").replace(/[^0-9+]/g,"")}`;
 
@@ -234,6 +257,22 @@ function resolveStop(ref){
 }
 function getSet(s){ return s.setTime || fmtTime(s.showtime); }
 
+// Build the clean, view-only shareable link for a tour (never includes the edit key)
+function shareLink(tourId){
+  const base = location.origin + location.pathname;
+  return `${base}?tour=${tourId}`;
+}
+async function copyShareLink(tourId){
+  const link = shareLink(tourId);
+  try{ await navigator.clipboard.writeText(link); return true; }
+  catch(e){
+    // fallback for older browsers
+    const ta=document.createElement("textarea"); ta.value=link; document.body.appendChild(ta);
+    ta.select(); try{ document.execCommand("copy"); }catch(_){} document.body.removeChild(ta);
+    return true;
+  }
+}
+
 function tourStops(tour){
   const stops = (tour.stopRefs||[]).map(resolveStop).filter(Boolean);
   stops.sort((a,b)=>{
@@ -267,6 +306,10 @@ async function loadData(){
     ]);
     venues = vSnap.docs.map(d=>({id:d.id,...d.data()}));
     tours = tSnap.docs.map(d=>({id:d.id,...d.data()}));
+    // Deep link: open straight to a specific tour if the URL asked for one
+    if(deepTourId && tours.some(t=>t.id===deepTourId)){
+      activeTourId = deepTourId; view = "tour";
+    }
     render();
   }catch(e){
     console.error(e);
@@ -427,18 +470,35 @@ function renderTour(){
   let range="";
   if(stops.length){ const a=dparts(stops[0].date),b=dparts(stops[stops.length-1].date); range=a.mon+" "+a.num+"–"+b.num+", "+b.year; }
 
+  // Factual hero facts: show count, states covered, month/year span
+  const stateSet = [...new Set(stops.map(s=>{const p=s.city.split(",");return (p[1]||"").trim();}).filter(Boolean))];
+  const statesStr = stateSet.join("/");
+  let monthStr = "";
+  if(stops.length){ const a=dparts(stops[0].date),b=dparts(stops[stops.length-1].date);
+    monthStr = a.mon===b.mon ? `${a.mon} ${b.year}` : `${a.mon}–${b.mon} ${b.year}`; }
+  const facts = [
+    `${stops.length} Show${stops.length!==1?"s":""}`,
+    statesStr,
+    monthStr
+  ].filter(Boolean).join("  ·  ");
+
   app.innerHTML = `
-    <div class="apphead">
-      <div class="topbar" style="padding:0 0 12px 0;background:transparent;">
+    <div class="tourhero">
+      <div class="hero-fallback"></div>
+      <div class="hero-grad"></div>
+      <div class="topbar" style="position:relative;z-index:2;background:transparent;">
         <button class="tb-back" data-back>‹ All Tours</button>
         <div class="viewbadge ${editMode?"edit":""}" style="margin:0;">${editMode?"✎ Edit":"View"}</div>
       </div>
-      <div class="kick">${esc(BAND)}</div>
-      <div class="ttl">${esc(tour.name)}</div>
-      <div class="sub">${stops.length} stops · ${range}</div>
+      <div class="tourhero-txt">
+        <div class="th-band">${esc(BAND)}</div>
+        <div class="th-title">${esc(tour.name)}</div>
+        <div class="th-facts">${esc(facts)}</div>
+      </div>
     </div>
     <div class="wrap">
       ${stops.length? cards : `<div class="empty">This tour has no resolvable shows.</div>`}
+      <button class="sharebtn" data-share>🔗 Copy Shareable Link</button>
       ${editMode?`<button class="delbtn" data-del>Delete Tour</button>`:""}
     </div>`;
 
@@ -446,6 +506,13 @@ function renderTour(){
   app.querySelectorAll("[data-open]").forEach(el=>el.addEventListener("click",()=>{
     activeStopIdx=+el.dataset.open; view="stop"; window.scrollTo(0,0); render();
   }));
+  const shareBtn=app.querySelector("[data-share]");
+  if(shareBtn) shareBtn.addEventListener("click",async ()=>{
+    await copyShareLink(tour.id);
+    shareBtn.textContent="✓ Link Copied — Paste Into a Text";
+    shareBtn.classList.add("done");
+    setTimeout(()=>{ shareBtn.textContent="🔗 Copy Shareable Link"; shareBtn.classList.remove("done"); },2500);
+  });
   const del=app.querySelector("[data-del]");
   if(del) del.addEventListener("click",()=>deleteTour(tour.id));
 }
@@ -461,6 +528,18 @@ function renderStop(){
 
   const hero = s.photo ? `<img src="${s.photo}" alt="">` : `<div class="hero-fallback"></div>`;
 
+  // Venue name links to its website if one exists in Firebase, else plain text
+  const venueName = s.website
+    ? `<a href="${esc(s.website)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:2px solid var(--accent2);">${esc(s.venue)}</a>`
+    : esc(s.venue);
+
+  // Directions: from previous stop's address to this one; first stop just navigates to destination
+  const prevStop = activeStopIdx>0 ? stops[activeStopIdx-1] : null;
+  const dirLink = prevStop
+    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(prevStop.address)}&destination=${encodeURIComponent(s.address)}`
+    : mapLink(s.address);
+  const dirLabel = prevStop ? `Directions from ${esc(prevStop.city.split(",")[0])} ›` : `Directions ›`;
+
   const contact = (s.contactName||s.contactPhone) ? `
     <div class="block"><div class="eyebrow">On-Site Contact</div>
       <a class="callbtn" href="${telLink(s.contactPhone)}">
@@ -471,17 +550,17 @@ function renderStop(){
         <span class="go">TAP TO CALL ›</span>
       </a></div>` : "";
 
-  const loadin = s.loadInNotes ? `<div class="block"><div class="eyebrow">Load-In &amp; Backline</div><div class="logi">${esc(s.loadInNotes)}</div></div>` : "";
+  const loadin = s.loadInNotes ? `<div class="block"><div class="eyebrow">Load-In &amp; Backline</div><div class="logi">${linkify(s.loadInNotes)}</div></div>` : "";
 
   const lodging = (s.lodgeName||s.lodgeAddress) ? `
     <div class="block"><div class="eyebrow">Lodging</div>
       ${s.lodgeName?`<div class="row"><span class="lab">Stay</span><span class="val">${esc(s.lodgeName)}</span></div>`:""}
       ${s.lodgeAddress?`<div class="row"><span class="lab">Address</span><span class="val"><a href="${mapLink(s.lodgeAddress)}">${esc(s.lodgeAddress)}</a></span></div>`:""}
       ${s.lodgeFrom?`<div class="row"><span class="lab">From venue</span><span class="val mono">${esc(s.lodgeFrom)}</span></div>`:""}
-      ${s.lodgeCheckin?`<div class="row"><span class="lab">Check-in</span><span class="val">${esc(s.lodgeCheckin)}</span></div>`:""}
+      ${s.lodgeCheckin?`<div class="row"><span class="lab">Check-in</span><span class="val">${linkify(s.lodgeCheckin)}</span></div>`:""}
     </div>` : "";
 
-  const notes = s.roadNotes ? `<div class="block"><div class="eyebrow">Notes</div><div class="notes">${esc(s.roadNotes)}</div></div>` : "";
+  const notes = s.roadNotes ? `<div class="block"><div class="eyebrow">Notes</div><div class="notes">${linkify(s.roadNotes)}</div></div>` : "";
 
   const prev = activeStopIdx>0 ? `data-go="${activeStopIdx-1}"` : 'class="disabled"';
   const next = activeStopIdx<stops.length-1 ? `data-go="${activeStopIdx+1}"` : 'class="disabled"';
@@ -498,8 +577,8 @@ function renderStop(){
       ${editMode?`<button class="photo-btn" data-photo>${s.photo?"Change Photo":"+ Add Photo"}</button>`:""}
       <div class="hero-txt">
         <span class="hero-date">${dp.dow} · ${dp.mon} ${dp.num}, ${dp.year}${s.tag?` · ${esc(s.tag)}`:""}</span>
-        <div class="hero-venue">${esc(s.venue)}</div>
-        <div class="hero-addr">${esc(s.city)} · <a href="${mapLink(s.address)}">Directions ›</a></div>
+        <div class="hero-venue">${venueName}</div>
+        <div class="hero-addr">${esc(s.city)} · <a href="${dirLink}" target="_blank" rel="noopener">${dirLabel}</a></div>
       </div>
     </div>
     <div class="calls">
