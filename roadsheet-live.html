@@ -89,6 +89,12 @@
   .hero-venue{font-family:var(--black);font-size:32px;line-height:.9;text-transform:uppercase;}
   .hero-addr{font-family:var(--mono);font-size:11px;letter-spacing:.04em;margin-top:8px;color:#e8e0d2;}
   .hero-addr a{border-bottom:1.5px solid var(--accent2);text-decoration:none;padding-bottom:1px;}
+  .hero-acts{font-family:var(--mono);font-size:11px;letter-spacing:.04em;margin-top:6px;color:var(--accent2);text-transform:uppercase;font-weight:700;}
+  .timingstrip{display:flex;flex-wrap:wrap;gap:2px;background:var(--ink);}
+  .timingstrip span{flex:1;min-width:50%;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;padding:10px 16px;text-transform:uppercase;}
+  .tb-set{color:#b9ae9d;border-top:1px solid rgba(255,255,255,.12);}
+  .tb-curfew{color:var(--ink);background:var(--accent);border-top:1px solid rgba(255,255,255,.12);}
+  .ticketbtn{display:block;text-align:center;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:13px;text-decoration:none;margin-top:8px;}
   .photo-btn{position:absolute;top:34px;right:10px;background:rgba(20,18,16,.7);color:#fff;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;padding:6px 10px;text-transform:uppercase;border:1px solid rgba(255,255,255,.3);}
 
   .calls{display:grid;grid-template-columns:1fr 1fr;background:var(--ink);}
@@ -247,7 +253,9 @@ function resolveStop(ref){
     phone:v.phone||"", website:v.website||"",
     showtime:b.showtime||"",              // Bandy's showtime (used to prefill Set + sort)
     setTime:b.setTime||"", loadIn:b.loadIn||"", soundcheck:b.soundcheck||"", doors:b.doors||"",
-    driveFrom:b.driveFrom||"", driveTime:b.driveTime||"", leaveBy:b.leaveBy||"",
+    setLength:b.setLength||"", curfew:b.curfew||"", otherActs:b.otherActs||"",
+    ticketPrice:b.ticketPrice||"", ticketLink:b.ticketLink||"",
+    driveFrom:b.driveFrom||"", driveTime:b.driveTime||"", leaveBy:b.leaveBy||"", driveNotes:b.driveNotes||"",
     contactName:b.contactName||"", contactPhone:b.contactPhone||"", contactRole:b.contactRole||"",
     loadInNotes:b.loadInNotes||"",
     lodgeName:b.lodgeName||"", lodgeAddress:b.lodgeAddress||"", lodgeFrom:b.lodgeFrom||"", lodgeCheckin:b.lodgeCheckin||"",
@@ -565,6 +573,21 @@ function renderStop(){
   const prev = activeStopIdx>0 ? `data-go="${activeStopIdx-1}"` : 'class="disabled"';
   const next = activeStopIdx<stops.length-1 ? `data-go="${activeStopIdx+1}"` : 'class="disabled"';
 
+  // Curfew / set-length strip below the call grid
+  const timingBits = [];
+  if(s.setLength) timingBits.push(`<span class="tb-set">SET LENGTH · ${esc(s.setLength)}</span>`);
+  if(s.curfew) timingBits.push(`<span class="tb-curfew">⏱ HARD STOP · ${esc(s.curfew)}</span>`);
+  const timingStrip = timingBits.length ? `<div class="timingstrip">${timingBits.join("")}</div>` : "";
+
+  // Tickets block (price text + tappable link button)
+  let tickets = "";
+  if(s.ticketPrice || s.ticketLink){
+    tickets = `<div class="block"><div class="eyebrow">Tickets</div>`;
+    if(s.ticketPrice) tickets += `<div class="row"><span class="lab">Price</span><span class="val">${esc(s.ticketPrice)}</span></div>`;
+    if(s.ticketLink) tickets += `<a class="ticketbtn" href="${esc(s.ticketLink)}" target="_blank" rel="noopener">🎟 Get Tickets ›</a>`;
+    tickets += `</div>`;
+  }
+
   app.innerHTML = `
     <div class="topbar">
       <button class="tb-back" data-back>‹ ${esc(tour.name)}</button>
@@ -579,6 +602,7 @@ function renderStop(){
         <span class="hero-date">${dp.dow} · ${dp.mon} ${dp.num}, ${dp.year}${s.tag?` · ${esc(s.tag)}`:""}</span>
         <div class="hero-venue">${venueName}</div>
         <div class="hero-addr">${esc(s.city)} · <a href="${dirLink}" target="_blank" rel="noopener">${dirLabel}</a></div>
+        ${s.otherActs?`<div class="hero-acts">w/ ${esc(s.otherActs)}</div>`:""}
       </div>
     </div>
     <div class="calls">
@@ -587,12 +611,14 @@ function renderStop(){
       <div class="call"><div class="k">Doors</div><div class="v">${esc(s.doors||"—")}</div></div>
       <div class="call hot"><div class="k">Set</div><div class="v">${esc(setT||"—")}</div></div>
     </div>
+    ${timingStrip}
     <div class="content">
       <div class="drivebar"><span class="ico">🚐</span>
         <div><div class="dv">${esc(s.driveTime||"—")}</div>
         <div class="dl">from ${esc(s.driveFrom||"—")} · leave by ${esc(s.leaveBy||"—")}</div></div>
       </div>
-      ${contact}${loadin}${lodging}${notes}
+      ${s.driveNotes?`<div class="block"><div class="eyebrow">Route / Drive Notes</div><div class="logi">${linkify(s.driveNotes)}</div></div>`:""}
+      ${contact}${loadin}${lodging}${tickets}${notes}
       <div class="navrow"><a ${prev}>‹ Prev</a><a ${next}>Next ›</a></div>
     </div>`;
 
@@ -624,10 +650,22 @@ function renderStopEdit(){
         ${fld("Doors","doors",s.doors)}
         ${fld("Set","setTime",getSet(s))}
       </div>
+      <div class="edit-grid">
+        ${fld("Set length","setLength",s.setLength)}
+        ${fld("Curfew / hard stop","curfew",s.curfew)}
+      </div>
+
+      <div class="edit-sec">Bill &amp; Tickets</div>
+      ${fld("Other acts on the bill","otherActs",s.otherActs)}
+      <div class="edit-grid">
+        ${fld("Ticket price","ticketPrice",s.ticketPrice)}
+        ${fld("Ticket link","ticketLink",s.ticketLink)}
+      </div>
 
       <div class="edit-sec">The Drive</div>
       ${fld("From","driveFrom",s.driveFrom)}
       <div class="edit-grid">${fld("Drive time","driveTime",s.driveTime)}${fld("Leave by","leaveBy",s.leaveBy)}</div>
+      ${ta("Route / drive notes (detours, gas, GPS quirks…)","driveNotes",s.driveNotes)}
 
       <div class="edit-sec">On-Site Contact</div>
       ${fld("Name","contactName",s.contactName)}
