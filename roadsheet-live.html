@@ -12,7 +12,7 @@
 <style>
   :root{
     --ink:#141210; --paper:#efe8db; --card:#fbf8f2;
-    --accent:#e0452a; --accent2:#f0b429; --muted:#726858; --line:#141210;
+    --accent:#e0452a; --accent2:#f0b429; --ok:#2e7d52; --muted:#726858; --line:#141210;
     --stack:'Archivo', system-ui, -apple-system, sans-serif;
     --black:'Archivo Black','Archivo',system-ui,sans-serif;
     --mono:'JetBrains Mono', ui-monospace, Menlo, monospace;
@@ -96,6 +96,17 @@
   .tb-curfew{color:var(--ink);background:var(--accent);border-top:1px solid rgba(255,255,255,.12);}
   .ticketbtn{display:block;text-align:center;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:13px;text-decoration:none;margin-top:8px;}
   .lodgebtn{display:block;text-align:center;background:var(--ink);color:#fff;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:12px;text-decoration:none;margin-top:10px;}
+  .cancelbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+  .cancelbar .cb-note{font-size:10px;opacity:.85;}
+  .cancelbar.ok{background:var(--card);border:1.5px solid var(--line);color:var(--ink);}
+  .cancelbar.urgent{background:var(--accent2);color:var(--ink);}
+  .cancelbar.passed{background:var(--accent);color:#fff;}
+  .confbar{display:block;text-align:center;font-family:var(--mono);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:11px;margin-bottom:12px;}
+  .confbar.yes{background:var(--ok);color:#fff;}
+  .confbar.no{background:var(--accent);color:#fff;}
+  .block.lodge-yes{border-left:5px solid var(--ok);padding-left:12px;}
+  .block.lodge-no{border-left:5px solid var(--accent);padding-left:12px;}
+  .block.lodge-yes .eyebrow{color:var(--ok);}
   .lodgesum{background:var(--ink);color:#fff;padding:18px 18px 16px;margin-top:6px;}
   .ls-head{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);}
   .ls-total{font-family:var(--black);font-size:38px;line-height:1;margin-top:8px;}
@@ -106,6 +117,8 @@
   .ls-b .l{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#b9ae9d;margin-top:2px;}
   .ls-b.warn{background:var(--accent);}
   .ls-b.warn .l{color:#ffe0d8;}
+  .ls-alerts{margin-top:14px;display:flex;flex-direction:column;gap:6px;}
+  .ls-alert{background:var(--accent2);color:var(--ink);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:9px 11px;line-height:1.35;}
   .photo-btn{position:absolute;top:34px;right:10px;background:rgba(20,18,16,.7);color:#fff;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;padding:6px 10px;text-transform:uppercase;border:1px solid rgba(255,255,255,.3);}
 
   .calls{display:grid;grid-template-columns:1fr 1fr;background:var(--ink);}
@@ -276,6 +289,8 @@ function resolveStop(ref){
     loadInNotes:b.loadInNotes||"",
     lodgeName:b.lodgeName||"", lodgeAddress:b.lodgeAddress||"", lodgeFrom:b.lodgeFrom||"", lodgeCheckin:b.lodgeCheckin||"",
     lodgePrice:b.lodgePrice||"", lodgeLink:b.lodgeLink||"", lodgeType:b.lodgeType||"",
+    lodgeBeds:b.lodgeBeds||"", lodgePrepay:b.lodgePrepay||"", lodgeCancelBy:b.lodgeCancelBy||"",
+    lodgePhone:b.lodgePhone||"", lodgeConfirmed:b.lodgeConfirmed||"",
     photo:b.photo||null, roadNotes:b.roadNotes||"",
     tag: status && status!=="Confirmed" ? status : ""
   };
@@ -292,24 +307,43 @@ function domainLabel(url){
   try{ return new URL(url).hostname.replace(/^www\./,""); }
   catch(e){ return "booking link"; }
 }
+// Format a cancel-by date with urgency: passed / days remaining
+function cancelStatus(iso){
+  if(!iso) return null;
+  const d = new Date(iso+"T00:00:00");
+  if(isNaN(d)) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = Math.round((d - today)/86400000);
+  const dp = dparts(iso);
+  const label = `${dp.mon} ${dp.num}`;
+  if(days < 0)  return {label, note:"deadline passed", level:"passed"};
+  if(days === 0) return {label, note:"TODAY", level:"urgent"};
+  if(days <= 7) return {label, note:`${days} day${days!==1?"s":""} left`, level:"urgent"};
+  return {label, note:`${days} days left`, level:"ok"};
+}
 // Sum lodging by UNIQUE NIGHT (so a double-header date isn't counted twice)
 function lodgingSummary(stops){
   const nights = {};   // date -> best lodging info for that date
   stops.forEach(s=>{
     const hasLodging = s.lodgeName || s.lodgeAddress || s.lodgePrice;
     if(!nights[s.date] || (hasLodging && !nights[s.date].hasLodging)){
-      nights[s.date] = {hasLodging:!!hasLodging, price:parsePrice(s.lodgePrice), type:s.lodgeType, name:s.lodgeName};
+      nights[s.date] = {hasLodging:!!hasLodging, price:parsePrice(s.lodgePrice), type:s.lodgeType,
+                        name:s.lodgeName, confirmed:s.lodgeConfirmed, cancelBy:s.lodgeCancelBy};
     }
   });
-  let total=0, hotel=0, other=0, unplanned=0;
+  let total=0, hotel=0, other=0, unplanned=0, notBooked=0;
+  const deadlines=[];
   Object.values(nights).forEach(n=>{
     if(!n.hasLodging){ unplanned++; return; }
     total += n.price;
     let t = n.type;
     if(!t) t = n.price>0 ? "Hotel" : "Other";   // infer if not set
     if(t==="Hotel") hotel++; else other++;
+    if(n.confirmed==="No") notBooked++;
+    const cs = cancelStatus(n.cancelBy);
+    if(cs && (cs.level==="urgent")) deadlines.push({name:n.name, label:cs.label, note:cs.note});
   });
-  return {total, hotel, other, unplanned, totalNights:Object.keys(nights).length};
+  return {total, hotel, other, unplanned, notBooked, deadlines, totalNights:Object.keys(nights).length};
 }
 
 // Build the clean, view-only shareable link for a tour (never includes the edit key)
@@ -563,6 +597,13 @@ function renderTour(){
 
   // Lodging totals, counted by unique night (double-headers don't double-count)
   const L = lodgingSummary(stops);
+  const alerts = [];
+  if(L.notBooked) alerts.push(`⚠ ${L.notBooked} night${L.notBooked!==1?"s":""} not booked yet`);
+  if(L.unplanned) alerts.push(`⚠ ${L.unplanned} night${L.unplanned!==1?"s":""} with no lodging planned`);
+  L.deadlines.forEach(d=>alerts.push(`⏳ Cancel by ${d.label} (${d.note})${d.name?` · ${d.name}`:""}`));
+  const alertHtml = alerts.length
+    ? `<div class="ls-alerts">${alerts.map(a=>`<div class="ls-alert">${esc(a)}</div>`).join("")}</div>` : "";
+
   const lodgingBlock = stops.length ? `
     <div class="lodgesum">
       <div class="ls-head">Lodging</div>
@@ -573,6 +614,7 @@ function renderTour(){
         <div class="ls-b"><span class="n">${L.other}</span><span class="l">Other</span></div>
         ${L.unplanned?`<div class="ls-b warn"><span class="n">${L.unplanned}</span><span class="l">Unplanned</span></div>`:""}
       </div>
+      ${alertHtml}
     </div>` : "";
 
   app.innerHTML = `
@@ -646,13 +688,24 @@ function renderStop(){
 
   const loadin = s.loadInNotes ? `<div class="block"><div class="eyebrow">Load-In &amp; Backline</div><div class="logi">${linkify(s.loadInNotes)}</div></div>` : "";
 
+  const cs = cancelStatus(s.lodgeCancelBy);
+  const confBar = s.lodgeConfirmed==="Yes"
+      ? `<div class="confbar yes">✓ Booking Confirmed</div>`
+      : s.lodgeConfirmed==="No"
+      ? `<div class="confbar no">⚠ Not Booked Yet</div>` : "";
+  const lodgeClass = s.lodgeConfirmed==="Yes" ? "lodge-yes" : s.lodgeConfirmed==="No" ? "lodge-no" : "";
   const lodging = (s.lodgeName||s.lodgeAddress||s.lodgePrice) ? `
-    <div class="block"><div class="eyebrow">Lodging${s.lodgeType?` · ${esc(s.lodgeType)}`:""}</div>
+    <div class="block ${lodgeClass}"><div class="eyebrow">Lodging${s.lodgeType?` · ${esc(s.lodgeType)}`:""}</div>
+      ${confBar}
       ${s.lodgeName?`<div class="row"><span class="lab">Stay</span><span class="val">${esc(s.lodgeName)}</span></div>`:""}
       ${s.lodgeAddress?`<div class="row"><span class="lab">Address</span><span class="val"><a href="${mapLink(s.lodgeAddress)}">${esc(s.lodgeAddress)}</a></span></div>`:""}
+      ${s.lodgePhone?`<div class="row"><span class="lab">Phone</span><span class="val mono"><a href="${telLink(s.lodgePhone)}">${esc(s.lodgePhone)}</a></span></div>`:""}
       ${s.lodgeFrom?`<div class="row"><span class="lab">From venue</span><span class="val mono">${esc(s.lodgeFrom)}</span></div>`:""}
+      ${s.lodgeBeds?`<div class="row"><span class="lab">Beds</span><span class="val">${esc(s.lodgeBeds)}</span></div>`:""}
       ${s.lodgePrice?`<div class="row"><span class="lab">Price (est.)</span><span class="val mono">${esc(s.lodgePrice)}</span></div>`:""}
+      ${s.lodgePrepay?`<div class="row"><span class="lab">Prepay needed</span><span class="val mono">${esc(s.lodgePrepay)}</span></div>`:""}
       ${s.lodgeCheckin?`<div class="row"><span class="lab">Check-in</span><span class="val">${linkify(s.lodgeCheckin)}</span></div>`:""}
+      ${cs?`<div class="cancelbar ${cs.level}"><span>✕ Cancel by ${esc(cs.label)}</span><span class="cb-note">${esc(cs.note)}</span></div>`:""}
       ${s.lodgeLink?`<a class="lodgebtn" href="${esc(s.lodgeLink)}" target="_blank" rel="noopener">🛏 Book via ${esc(domainLabel(s.lodgeLink))} ›</a>`:""}
     </div>` : "";
 
@@ -722,6 +775,7 @@ function sel(l,k,v,opts){
   const o = opts.map(x=>`<option value="${esc(x)}" ${x===v?"selected":""}>${x||"— auto —"}</option>`).join("");
   return `<div class="edit-field"><label>${l}</label><select data-k="${k}">${o}</select></div>`;
 }
+function fldDate(l,k,v){ return `<div class="edit-field"><label>${l}</label><input type="date" data-k="${k}" value="${esc(v)}"></div>`; }
 function ta(l,k,v){ return `<div class="edit-field"><label>${l}</label><textarea data-k="${k}">${esc(v)}</textarea></div>`; }
 
 function renderStopEdit(){
@@ -768,12 +822,19 @@ function renderStopEdit(){
       ${ta("Parking, doors, backline…","loadInNotes",s.loadInNotes)}
 
       <div class="edit-sec">Lodging</div>
+      ${sel("Booking confirmed?","lodgeConfirmed",s.lodgeConfirmed,["","Yes","No"])}
       ${fld("Stay","lodgeName",s.lodgeName)}
       ${fld("Address","lodgeAddress",s.lodgeAddress)}
+      ${fld("Phone","lodgePhone",s.lodgePhone)}
       <div class="edit-grid">${fld("From venue","lodgeFrom",s.lodgeFrom)}${fld("Check-in","lodgeCheckin",s.lodgeCheckin)}</div>
+      ${fld("Beds","lodgeBeds",s.lodgeBeds)}
       <div class="edit-grid">
         ${fld("Price (est.)","lodgePrice",s.lodgePrice)}
         ${sel("Type","lodgeType",s.lodgeType,["","Hotel","Other"])}
+      </div>
+      <div class="edit-grid">
+        ${sel("Prepay needed","lodgePrepay",s.lodgePrepay,["","Yes","No"])}
+        ${fldDate("Cancel by","lodgeCancelBy",s.lodgeCancelBy)}
       </div>
       ${fld("Booking link (booking.com, Airbnb…)","lodgeLink",s.lodgeLink)}
 
