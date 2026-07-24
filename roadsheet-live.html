@@ -147,6 +147,7 @@
   .showpick.sel .chk{background:var(--accent2);color:var(--ink);border-color:var(--accent2);}
   .showpick .sp-v{font-weight:700;font-size:15px;}
   .showpick .sp-d{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.04em;}
+  .sp-badge{display:inline-block;font-family:var(--mono);font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:var(--accent2);color:var(--ink);padding:2px 6px;vertical-align:middle;margin-left:4px;}
   .showpick.sel .sp-d{color:#b9ae9d;}
   .savebar{position:sticky;bottom:0;background:var(--paper);padding:14px;border-top:1.5px solid var(--line);display:flex;gap:10px;}
   .savebar button{flex:1;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:14px;border:1.5px solid var(--line);}
@@ -244,7 +245,11 @@ function timeToMin(t){
 function resolveStop(ref){
   const v = venues.find(x=>x.id===ref.venueId);
   if(!v) return null;
-  const b = (v.bookings||[]).find(bk=>bk.date===ref.date) || {};
+  const arr = v.bookings||[];
+  let b = arr.find(bk=>bk.date===ref.date);
+  // Legacy fallback: venue stores a single confirmedBookingDate instead of a bookings[] entry
+  if(!b && v.confirmedBookingDate===ref.date){ b = {date:ref.date, showtime:v.showtime||"", status:"Confirmed"}; }
+  if(!b) b = {};
   const status = b.status || "Confirmed";
   return {
     venueId:v.id, date:ref.date,
@@ -296,10 +301,18 @@ function tourStops(tour){
 function upcomingShows(){
   const today = new Date(); today.setHours(0,0,0,0);
   const list=[];
-  venues.forEach(v=>(v.bookings||[]).forEach(b=>{
-    const d=new Date(b.date+"T00:00:00");
-    if(d>=today) list.push({venueId:v.id, venue:v.name, city:v.city, state:v.state, date:b.date, showtime:b.showtime||"", status:b.status||"Confirmed"});
-  }));
+  venues.forEach(v=>{
+    const arr = v.bookings||[];
+    arr.forEach(b=>{
+      const d=new Date(b.date+"T00:00:00");
+      if(d>=today) list.push({venueId:v.id, venue:v.name, city:v.city, state:v.state, date:b.date, showtime:b.showtime||"", status:b.status||"Confirmed", legacy:false});
+    });
+    // Legacy format: a single confirmedBookingDate with no bookings[] array
+    if(v.confirmedBookingDate && arr.length===0){
+      const d=new Date(v.confirmedBookingDate+"T00:00:00");
+      if(d>=today) list.push({venueId:v.id, venue:v.name, city:v.city, state:v.state, date:v.confirmedBookingDate, showtime:v.showtime||"", status:"Confirmed", legacy:true});
+    }
+  });
   list.sort((a,b)=> a.date!==b.date ? (a.date<b.date?-1:1) : timeToMin(a.showtime)-timeToMin(b.showtime));
   return list;
 }
@@ -347,7 +360,22 @@ async function deleteTour(id){
 async function saveStopFields(venueId, date, fields){
   const v = venues.find(x=>x.id===venueId);
   if(!v) return;
-  const bookings = (v.bookings||[]).map(bk => bk.date===date ? {...bk, ...fields} : bk);
+  let bookings = (v.bookings||[]).slice();
+  const idx = bookings.findIndex(bk=>bk.date===date);
+  if(idx >= 0){
+    bookings[idx] = {...bookings[idx], ...fields};
+  } else {
+    // Legacy venue (confirmedBookingDate, no bookings[]): create the entry so edits can persist.
+    // This mirrors the migration Bandy performs itself.
+    bookings.push({
+      date,
+      showtime: v.showtime || "",
+      notes: "",
+      status: "Confirmed",
+      ...fields
+    });
+    bookings.sort((a,b)=> a.date<b.date?-1:1);
+  }
   await db.collection("venues").doc(venueId).update({bookings});
   v.bookings = bookings; // update local cache
 }
@@ -415,10 +443,11 @@ function renderBuilder(){
     const dp=dparts(s.date);
     const isSel = builderSel.some(x=>x.venueId===s.venueId && x.date===s.date);
     const t = s.showtime?(" · "+fmtTime(s.showtime)):"";
+    const badge = s.status && s.status!=="Confirmed" ? `<span class="sp-badge">${esc(s.status)}</span>` : "";
     return `<div class="showpick ${isSel?"sel":""}" data-pick='${esc(JSON.stringify({venueId:s.venueId,date:s.date}))}'>
       <div class="chk">${isSel?"✓":""}</div>
       <div style="flex:1;min-width:0;">
-        <div class="sp-v">${esc(s.venue)}</div>
+        <div class="sp-v">${esc(s.venue)} ${badge}</div>
         <div class="sp-d">${dp.dow} ${dp.mon} ${dp.num} · ${esc((s.city||"")+(s.state?", "+s.state:""))}${t}</div>
       </div>
     </div>`;
