@@ -63,6 +63,11 @@
   .stopcard:has(.sc-tag) .sc-body,.stopcard:has(.sc-dh) .sc-body{padding-top:22px;}
   .sc-venue{font-family:var(--black);font-size:17px;line-height:1.02;text-transform:uppercase;}
   .sc-city{font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;margin-top:4px;}
+  .lchip{display:inline-block;font-family:var(--mono);font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;margin-left:5px;vertical-align:middle;}
+  .lchip.yes{background:var(--ok);color:#fff;}
+  .lchip.no{background:var(--accent);color:#fff;}
+  .lchip.tbd{background:var(--accent2);color:var(--ink);}
+  .lchip.none{background:#ddd5c6;color:#6b6157;}
   .sc-meta{display:flex;gap:14px;margin-top:9px;}
   .sc-mi{display:flex;flex-direction:column;}
   .sc-mk{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;}
@@ -583,13 +588,18 @@ function renderTour(){
 
   const cards = stops.map((s,i)=>{
     const dp=dparts(s.date);
+    const hasLodge = s.lodgeName||s.lodgeAddress||s.lodgePrice;
+    const lchip = s.lodgeConfirmed==="Yes" ? `<span class="lchip yes">🛏 Booked</span>`
+      : s.lodgeConfirmed==="No" ? `<span class="lchip no">🛏 Not booked</span>`
+      : hasLodge ? `<span class="lchip tbd">🛏 TBD</span>`
+      : `<span class="lchip none">🛏 None</span>`;
     return `<div class="stopcard" data-open="${i}">
       ${s.tag?`<div class="sc-tag">${esc(s.tag)}</div>`:""}
       ${s.doubleHeader?`<div class="sc-dh">2 Shows</div>`:""}
       <div class="sc-day"><div class="sc-dow">${dp.dow}</div><div class="sc-dnum">${dp.num}</div><div class="sc-mon">${dp.mon}</div></div>
       <div class="sc-body">
         <div class="sc-venue">${esc(s.venue)}</div>
-        <div class="sc-city">${esc(s.city)}</div>
+        <div class="sc-city">${esc(s.city)} ${lchip}</div>
         <div class="sc-meta">
           <div class="sc-mi"><div class="sc-mk">Load-in</div><div class="sc-mv hot">${esc(s.loadIn||"—")}</div></div>
           <div class="sc-mi"><div class="sc-mk">Set</div><div class="sc-mv">${esc(getSet(s)||"—")}</div></div>
