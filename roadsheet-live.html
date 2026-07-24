@@ -95,6 +95,17 @@
   .tb-set{color:#b9ae9d;border-top:1px solid rgba(255,255,255,.12);}
   .tb-curfew{color:var(--ink);background:var(--accent);border-top:1px solid rgba(255,255,255,.12);}
   .ticketbtn{display:block;text-align:center;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:13px;text-decoration:none;margin-top:8px;}
+  .lodgebtn{display:block;text-align:center;background:var(--ink);color:#fff;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:12px;text-decoration:none;margin-top:10px;}
+  .lodgesum{background:var(--ink);color:#fff;padding:18px 18px 16px;margin-top:6px;}
+  .ls-head{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);}
+  .ls-total{font-family:var(--black);font-size:38px;line-height:1;margin-top:8px;}
+  .ls-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#b9ae9d;margin-top:6px;}
+  .ls-bars{display:flex;gap:10px;margin-top:16px;}
+  .ls-b{flex:1;background:#26221e;padding:10px 12px;}
+  .ls-b .n{display:block;font-family:var(--mono);font-size:22px;font-weight:800;}
+  .ls-b .l{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#b9ae9d;margin-top:2px;}
+  .ls-b.warn{background:var(--accent);}
+  .ls-b.warn .l{color:#ffe0d8;}
   .photo-btn{position:absolute;top:34px;right:10px;background:rgba(20,18,16,.7);color:#fff;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;padding:6px 10px;text-transform:uppercase;border:1px solid rgba(255,255,255,.3);}
 
   .calls{display:grid;grid-template-columns:1fr 1fr;background:var(--ink);}
@@ -264,11 +275,42 @@ function resolveStop(ref){
     contactName:b.contactName||"", contactPhone:b.contactPhone||"", contactRole:b.contactRole||"",
     loadInNotes:b.loadInNotes||"",
     lodgeName:b.lodgeName||"", lodgeAddress:b.lodgeAddress||"", lodgeFrom:b.lodgeFrom||"", lodgeCheckin:b.lodgeCheckin||"",
+    lodgePrice:b.lodgePrice||"", lodgeLink:b.lodgeLink||"", lodgeType:b.lodgeType||"",
     photo:b.photo||null, roadNotes:b.roadNotes||"",
     tag: status && status!=="Confirmed" ? status : ""
   };
 }
 function getSet(s){ return s.setTime || fmtTime(s.showtime); }
+
+// --- Lodging helpers ---
+function parsePrice(p){
+  if(!p) return 0;
+  const n = parseFloat(String(p).replace(/[^0-9.]/g,""));
+  return isNaN(n) ? 0 : n;
+}
+function domainLabel(url){
+  try{ return new URL(url).hostname.replace(/^www\./,""); }
+  catch(e){ return "booking link"; }
+}
+// Sum lodging by UNIQUE NIGHT (so a double-header date isn't counted twice)
+function lodgingSummary(stops){
+  const nights = {};   // date -> best lodging info for that date
+  stops.forEach(s=>{
+    const hasLodging = s.lodgeName || s.lodgeAddress || s.lodgePrice;
+    if(!nights[s.date] || (hasLodging && !nights[s.date].hasLodging)){
+      nights[s.date] = {hasLodging:!!hasLodging, price:parsePrice(s.lodgePrice), type:s.lodgeType, name:s.lodgeName};
+    }
+  });
+  let total=0, hotel=0, other=0, unplanned=0;
+  Object.values(nights).forEach(n=>{
+    if(!n.hasLodging){ unplanned++; return; }
+    total += n.price;
+    let t = n.type;
+    if(!t) t = n.price>0 ? "Hotel" : "Other";   // infer if not set
+    if(t==="Hotel") hotel++; else other++;
+  });
+  return {total, hotel, other, unplanned, totalNights:Object.keys(nights).length};
+}
 
 // Build the clean, view-only shareable link for a tour (never includes the edit key)
 function shareLink(tourId){
@@ -519,6 +561,20 @@ function renderTour(){
     monthStr
   ].filter(Boolean).join("  ·  ");
 
+  // Lodging totals, counted by unique night (double-headers don't double-count)
+  const L = lodgingSummary(stops);
+  const lodgingBlock = stops.length ? `
+    <div class="lodgesum">
+      <div class="ls-head">Lodging</div>
+      <div class="ls-total">$${L.total.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
+      <div class="ls-sub">Estimated total · ${L.totalNights} night${L.totalNights!==1?"s":""}</div>
+      <div class="ls-bars">
+        <div class="ls-b"><span class="n">${L.hotel}</span><span class="l">Hotel</span></div>
+        <div class="ls-b"><span class="n">${L.other}</span><span class="l">Other</span></div>
+        ${L.unplanned?`<div class="ls-b warn"><span class="n">${L.unplanned}</span><span class="l">Unplanned</span></div>`:""}
+      </div>
+    </div>` : "";
+
   app.innerHTML = `
     <div class="tourhero">
       <div class="hero-fallback"></div>
@@ -535,6 +591,7 @@ function renderTour(){
     </div>
     <div class="wrap">
       ${stops.length? cards : `<div class="empty">This tour has no resolvable shows.</div>`}
+      ${lodgingBlock}
       <button class="sharebtn" data-share>🔗 Copy Shareable Link</button>
       ${editMode?`<button class="delbtn" data-del>Delete Tour</button>`:""}
     </div>`;
@@ -589,12 +646,14 @@ function renderStop(){
 
   const loadin = s.loadInNotes ? `<div class="block"><div class="eyebrow">Load-In &amp; Backline</div><div class="logi">${linkify(s.loadInNotes)}</div></div>` : "";
 
-  const lodging = (s.lodgeName||s.lodgeAddress) ? `
-    <div class="block"><div class="eyebrow">Lodging</div>
+  const lodging = (s.lodgeName||s.lodgeAddress||s.lodgePrice) ? `
+    <div class="block"><div class="eyebrow">Lodging${s.lodgeType?` · ${esc(s.lodgeType)}`:""}</div>
       ${s.lodgeName?`<div class="row"><span class="lab">Stay</span><span class="val">${esc(s.lodgeName)}</span></div>`:""}
       ${s.lodgeAddress?`<div class="row"><span class="lab">Address</span><span class="val"><a href="${mapLink(s.lodgeAddress)}">${esc(s.lodgeAddress)}</a></span></div>`:""}
       ${s.lodgeFrom?`<div class="row"><span class="lab">From venue</span><span class="val mono">${esc(s.lodgeFrom)}</span></div>`:""}
+      ${s.lodgePrice?`<div class="row"><span class="lab">Price (est.)</span><span class="val mono">${esc(s.lodgePrice)}</span></div>`:""}
       ${s.lodgeCheckin?`<div class="row"><span class="lab">Check-in</span><span class="val">${linkify(s.lodgeCheckin)}</span></div>`:""}
+      ${s.lodgeLink?`<a class="lodgebtn" href="${esc(s.lodgeLink)}" target="_blank" rel="noopener">🛏 Book via ${esc(domainLabel(s.lodgeLink))} ›</a>`:""}
     </div>` : "";
 
   const notes = s.roadNotes ? `<div class="block"><div class="eyebrow">Notes</div><div class="notes">${linkify(s.roadNotes)}</div></div>` : "";
@@ -659,6 +718,10 @@ function renderStop(){
 
 // ============ RENDER: STOP EDIT ============
 function fld(l,k,v){ return `<div class="edit-field"><label>${l}</label><input data-k="${k}" value="${esc(v)}"></div>`; }
+function sel(l,k,v,opts){
+  const o = opts.map(x=>`<option value="${esc(x)}" ${x===v?"selected":""}>${x||"— auto —"}</option>`).join("");
+  return `<div class="edit-field"><label>${l}</label><select data-k="${k}">${o}</select></div>`;
+}
 function ta(l,k,v){ return `<div class="edit-field"><label>${l}</label><textarea data-k="${k}">${esc(v)}</textarea></div>`; }
 
 function renderStopEdit(){
@@ -708,6 +771,11 @@ function renderStopEdit(){
       ${fld("Stay","lodgeName",s.lodgeName)}
       ${fld("Address","lodgeAddress",s.lodgeAddress)}
       <div class="edit-grid">${fld("From venue","lodgeFrom",s.lodgeFrom)}${fld("Check-in","lodgeCheckin",s.lodgeCheckin)}</div>
+      <div class="edit-grid">
+        ${fld("Price (est.)","lodgePrice",s.lodgePrice)}
+        ${sel("Type","lodgeType",s.lodgeType,["","Hotel","Other"])}
+      </div>
+      ${fld("Booking link (booking.com, Airbnb…)","lodgeLink",s.lodgeLink)}
 
       <div class="edit-sec">Notes</div>
       ${ta("Anything else…","roadNotes",s.roadNotes)}
