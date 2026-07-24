@@ -119,6 +119,16 @@
   .ls-b.warn .l{color:#ffe0d8;}
   .ls-alerts{margin-top:14px;display:flex;flex-direction:column;gap:6px;}
   .ls-alert{background:var(--accent2);color:var(--ink);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:9px 11px;line-height:1.35;}
+  .lodgenotes{font-size:14px;line-height:1.55;color:#2c2620;white-space:pre-wrap;margin-top:10px;padding-top:10px;border-top:1px solid rgba(20,18,16,.12);}
+  .ls-split{display:flex;gap:10px;margin-top:14px;}
+  .ls-s{flex:1;background:#26221e;padding:11px 12px;}
+  .ls-s .n{display:block;font-family:var(--mono);font-size:20px;font-weight:800;color:#fff;}
+  .ls-s .l{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#b9ae9d;margin-top:3px;}
+  .ls-s.now{background:var(--ok);}
+  .ls-s.now .l{color:#d6efdf;}
+  .commitbar{margin-top:14px;padding:11px 12px;font-family:var(--mono);font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1.4;}
+  .commitbar.free{background:var(--ok);color:#fff;}
+  .commitbar.locked{background:var(--accent2);color:var(--ink);}
   .photo-btn{position:absolute;top:34px;right:10px;background:rgba(20,18,16,.7);color:#fff;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;padding:6px 10px;text-transform:uppercase;border:1px solid rgba(255,255,255,.3);}
 
   .calls{display:grid;grid-template-columns:1fr 1fr;background:var(--ink);}
@@ -290,7 +300,7 @@ function resolveStop(ref){
     lodgeName:b.lodgeName||"", lodgeAddress:b.lodgeAddress||"", lodgeFrom:b.lodgeFrom||"", lodgeCheckin:b.lodgeCheckin||"",
     lodgePrice:b.lodgePrice||"", lodgeLink:b.lodgeLink||"", lodgeType:b.lodgeType||"",
     lodgeBeds:b.lodgeBeds||"", lodgePrepay:b.lodgePrepay||"", lodgeCancelBy:b.lodgeCancelBy||"",
-    lodgePhone:b.lodgePhone||"", lodgeConfirmed:b.lodgeConfirmed||"",
+    lodgePhone:b.lodgePhone||"", lodgeConfirmed:b.lodgeConfirmed||"", lodgeNotes:b.lodgeNotes||"",
     photo:b.photo||null, roadNotes:b.roadNotes||"",
     tag: status && status!=="Confirmed" ? status : ""
   };
@@ -328,22 +338,32 @@ function lodgingSummary(stops){
     const hasLodging = s.lodgeName || s.lodgeAddress || s.lodgePrice;
     if(!nights[s.date] || (hasLodging && !nights[s.date].hasLodging)){
       nights[s.date] = {hasLodging:!!hasLodging, price:parsePrice(s.lodgePrice), type:s.lodgeType,
-                        name:s.lodgeName, confirmed:s.lodgeConfirmed, cancelBy:s.lodgeCancelBy};
+                        name:s.lodgeName, confirmed:s.lodgeConfirmed, cancelBy:s.lodgeCancelBy,
+                        prepay:s.lodgePrepay};
     }
   });
-  let total=0, hotel=0, other=0, unplanned=0, notBooked=0;
+  let total=0, hotel=0, other=0, unplanned=0, notBooked=0, dueNow=0, dueLater=0, committed=0;
   const deadlines=[];
+  let soonestDeadline=null;
   Object.values(nights).forEach(n=>{
     if(!n.hasLodging){ unplanned++; return; }
     total += n.price;
+    if(n.prepay==="Yes") dueNow += n.price; else dueLater += n.price;
+    // "Committed" = money you'd lose cancelling today (cancel-by date already passed)
+    const cs = cancelStatus(n.cancelBy);
+    if(cs && cs.level==="passed"){ committed += n.price; }
+    else if(n.cancelBy){
+      if(!soonestDeadline || n.cancelBy < soonestDeadline) soonestDeadline = n.cancelBy;
+    }
     let t = n.type;
     if(!t) t = n.price>0 ? "Hotel" : "Other";   // infer if not set
     if(t==="Hotel") hotel++; else other++;
     if(n.confirmed==="No") notBooked++;
-    const cs = cancelStatus(n.cancelBy);
     if(cs && (cs.level==="urgent")) deadlines.push({name:n.name, label:cs.label, note:cs.note});
   });
-  return {total, hotel, other, unplanned, notBooked, deadlines, totalNights:Object.keys(nights).length};
+  return {total, hotel, other, unplanned, notBooked, deadlines, dueNow, dueLater,
+          committed, cancelable: total-committed, soonestDeadline,
+          totalNights:Object.keys(nights).length};
 }
 
 // Build the clean, view-only shareable link for a tour (never includes the edit key)
@@ -597,6 +617,13 @@ function renderTour(){
 
   // Lodging totals, counted by unique night (double-headers don't double-count)
   const L = lodgingSummary(stops);
+  const fmt$ = n => "$" + n.toLocaleString(undefined,{maximumFractionDigits:0});
+  const dlLabel = L.soonestDeadline ? (()=>{const d=dparts(L.soonestDeadline);return `${d.mon} ${d.num}`;})() : null;
+  const commitBar = L.total>0 ? (
+    L.committed===0
+      ? `<div class="commitbar free">✓ ${fmt$(0)} committed · fully cancelable${dlLabel?` through ${dlLabel}`:""}</div>`
+      : `<div class="commitbar locked">${fmt$(L.committed)} locked in · ${fmt$(L.cancelable)} still cancelable${dlLabel?` through ${dlLabel}`:""}</div>`
+  ) : "";
   const alerts = [];
   if(L.notBooked) alerts.push(`⚠ ${L.notBooked} night${L.notBooked!==1?"s":""} not booked yet`);
   if(L.unplanned) alerts.push(`⚠ ${L.unplanned} night${L.unplanned!==1?"s":""} with no lodging planned`);
@@ -609,6 +636,11 @@ function renderTour(){
       <div class="ls-head">Lodging</div>
       <div class="ls-total">$${L.total.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
       <div class="ls-sub">Estimated total · ${L.totalNights} night${L.totalNights!==1?"s":""}</div>
+      ${commitBar}
+      <div class="ls-split">
+        <div class="ls-s now"><span class="n">$${L.dueNow.toLocaleString(undefined,{maximumFractionDigits:0})}</span><span class="l">Due now</span></div>
+        <div class="ls-s"><span class="n">$${L.dueLater.toLocaleString(undefined,{maximumFractionDigits:0})}</span><span class="l">Due at check-in</span></div>
+      </div>
       <div class="ls-bars">
         <div class="ls-b"><span class="n">${L.hotel}</span><span class="l">Hotel</span></div>
         <div class="ls-b"><span class="n">${L.other}</span><span class="l">Other</span></div>
@@ -706,6 +738,7 @@ function renderStop(){
       ${s.lodgePrepay?`<div class="row"><span class="lab">Prepay needed</span><span class="val mono">${esc(s.lodgePrepay)}</span></div>`:""}
       ${s.lodgeCheckin?`<div class="row"><span class="lab">Check-in</span><span class="val">${linkify(s.lodgeCheckin)}</span></div>`:""}
       ${cs?`<div class="cancelbar ${cs.level}"><span>✕ Cancel by ${esc(cs.label)}</span><span class="cb-note">${esc(cs.note)}</span></div>`:""}
+      ${s.lodgeNotes?`<div class="lodgenotes">${linkify(s.lodgeNotes)}</div>`:""}
       ${s.lodgeLink?`<a class="lodgebtn" href="${esc(s.lodgeLink)}" target="_blank" rel="noopener">🛏 Book via ${esc(domainLabel(s.lodgeLink))} ›</a>`:""}
     </div>` : "";
 
@@ -837,6 +870,7 @@ function renderStopEdit(){
         ${fldDate("Cancel by","lodgeCancelBy",s.lodgeCancelBy)}
       </div>
       ${fld("Booking link (booking.com, Airbnb…)","lodgeLink",s.lodgeLink)}
+      ${ta("Lodging notes","lodgeNotes",s.lodgeNotes)}
 
       <div class="edit-sec">Notes</div>
       ${ta("Anything else…","roadNotes",s.roadNotes)}
