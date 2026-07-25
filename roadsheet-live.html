@@ -193,6 +193,7 @@
   .savebar .save{background:var(--accent);color:#fff;border-color:var(--accent);}
   .savebar .cancel{background:var(--card);color:var(--ink);}
   .delbtn{width:100%;margin-top:10px;background:transparent;border:1.5px solid var(--accent);color:var(--accent);font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:12px;}
+  .editstopsbtn{width:100%;margin-top:10px;background:var(--card);border:1.5px solid var(--line);color:var(--ink);font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:12px;}
   .sharebtn{width:100%;margin-top:10px;background:var(--ink);border:1.5px solid var(--line);color:#fff;font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:13px;}
   .sharebtn.done{background:var(--accent2);color:var(--ink);border-color:var(--accent2);}
   .hidden{display:none;}
@@ -231,7 +232,7 @@ catch(e){ console.error("Firebase init failed", e); }
 // ============ STATE ============
 let venues = [];
 let tours = [];
-let view = "home";          // home | builder | tour | stop | stopEdit
+let view = "home";          // home | builder | tour | stop | stopEdit | editStops
 let activeTourId = null;
 let activeStopIdx = null;
 let builderName = "";
@@ -677,6 +678,7 @@ function renderTour(){
       ${stops.length? cards : `<div class="empty">This tour has no resolvable shows.</div>`}
       ${lodgingBlock}
       <button class="sharebtn" data-share>🔗 Copy Shareable Link</button>
+      ${editMode?`<button class="editstopsbtn" data-editstops>✎ Add / Remove Stops</button>`:""}
       ${editMode?`<button class="delbtn" data-del>Delete Tour</button>`:""}
     </div>`;
 
@@ -693,6 +695,76 @@ function renderTour(){
   });
   const del=app.querySelector("[data-del]");
   if(del) del.addEventListener("click",()=>deleteTour(tour.id));
+  const es=app.querySelector("[data-editstops]");
+  if(es) es.addEventListener("click",()=>{
+    builderSel = (tour.stopRefs||[]).map(r=>({venueId:r.venueId, date:r.date}));
+    view="editStops"; window.scrollTo(0,0); render();
+  });
+}
+
+// ============ RENDER: EDIT STOPS (add/remove on existing tour) ============
+function renderEditStops(){
+  const tour = tours.find(t=>t.id===activeTourId);
+  if(!tour){ view="home"; return render(); }
+
+  // Pickable = upcoming shows PLUS any shows already in this tour (so you can always untick them,
+  // even if they'd otherwise be filtered out, e.g. a fallen-through or past-dated stop).
+  const shows = upcomingShows();
+  const seen = new Set(shows.map(s=>s.venueId+"|"+s.date));
+  builderSel.forEach(ref=>{
+    const key = ref.venueId+"|"+ref.date;
+    if(!seen.has(key)){
+      const st = resolveStop(ref);
+      if(st){ shows.push({venueId:st.venueId, venue:st.venue, city:st.city.split(",")[0], state:(st.city.split(",")[1]||"").trim(), date:st.date, showtime:st.showtime, status:"Confirmed"}); seen.add(key); }
+    }
+  });
+  shows.sort((a,b)=> a.date!==b.date ? (a.date<b.date?-1:1) : timeToMin(a.showtime)-timeToMin(b.showtime));
+
+  const rows = shows.map(s=>{
+    const dp=dparts(s.date);
+    const isSel = builderSel.some(x=>x.venueId===s.venueId && x.date===s.date);
+    const t = s.showtime?(" · "+fmtTime(s.showtime)):"";
+    const badge = s.status && s.status!=="Confirmed" ? `<span class="sp-badge">${esc(s.status)}</span>` : "";
+    return `<div class="showpick ${isSel?"sel":""}" data-pick='${esc(JSON.stringify({venueId:s.venueId,date:s.date}))}'>
+      <div class="chk">${isSel?"✓":""}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="sp-v">${esc(s.venue)} ${badge}</div>
+        <div class="sp-d">${dp.dow} ${dp.mon} ${dp.num} · ${esc((s.city||"")+(s.state?", "+s.state:""))}${t}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  app.innerHTML = `
+    <div class="topbar"><button class="tb-back" data-cancel>‹ Cancel</button><span style="font-family:var(--mono);font-size:12px;letter-spacing:.08em;">EDIT STOPS</span></div>
+    <div class="wrap">
+      <div class="b-hint" style="margin-bottom:14px;">${esc(tour.name)} · tap to add or remove (${builderSel.length} selected)</div>
+      ${rows}
+    </div>
+    <div class="savebar">
+      <button class="cancel" data-cancel>Cancel</button>
+      <button class="save" data-save>Save Changes</button>
+    </div>`;
+
+  app.querySelectorAll("[data-pick]").forEach(el=>el.addEventListener("click",()=>{
+    const ref=JSON.parse(el.dataset.pick);
+    const i=builderSel.findIndex(x=>x.venueId===ref.venueId && x.date===ref.date);
+    if(i>=0) builderSel.splice(i,1); else builderSel.push(ref);
+    render();
+  }));
+  app.querySelectorAll("[data-cancel]").forEach(el=>el.addEventListener("click",()=>{ view="tour"; window.scrollTo(0,0); render(); }));
+  app.querySelector("[data-save]").addEventListener("click",saveEditedStops);
+}
+
+async function saveEditedStops(){
+  const tour = tours.find(t=>t.id===activeTourId);
+  if(!tour) return;
+  if(builderSel.length===0){ alert("A tour needs at least one stop. Untick fewer, or delete the whole tour instead."); return; }
+  try{
+    const stopRefs = builderSel.map(s=>({venueId:s.venueId, date:s.date}));
+    await db.collection("tours").doc(tour.id).update({stopRefs});
+    tour.stopRefs = stopRefs;  // local cache
+    view="tour"; window.scrollTo(0,0); render();
+  }catch(e){ console.error(e); alert("Couldn't save changes: "+e.message); }
 }
 
 // ============ RENDER: STOP DETAIL ============
@@ -916,6 +988,7 @@ photoInput.addEventListener("change", async e=>{
 function render(){
   if(view==="home") renderHome();
   else if(view==="builder") renderBuilder();
+  else if(view==="editStops") renderEditStops();
   else if(view==="tour") renderTour();
   else if(view==="stop") renderStop();
   else if(view==="stopEdit") renderStopEdit();
